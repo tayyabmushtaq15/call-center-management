@@ -3,13 +3,15 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const dbUrl = process.env["DATABASE_URL"];
+// The CLI (migrate, studio) prefers DIRECT_URL: Supabase's pooled URL (port
+// 6543, transaction mode) can't run migrations. The app itself uses DATABASE_URL.
+const dbUrl = process.env["DIRECT_URL"] || process.env["DATABASE_URL"];
 if (
   dbUrl &&
   !/^\s*postgres(ql)?:\/\//i.test(dbUrl)
 ) {
   throw new Error(
-    "DATABASE_URL must be a PostgreSQL connection string (postgresql:// or postgres://). Other databases are not supported."
+    "DATABASE_URL / DIRECT_URL must be a PostgreSQL connection string (postgresql:// or postgres://). Other databases are not supported."
   );
 }
 
@@ -20,6 +22,6 @@ export default defineConfig({
     seed: "npx tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: dbUrl,
   },
 });

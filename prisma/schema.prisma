@@ -6,19 +6,27 @@ generator client {
 }
 
 // PostgreSQL only — raw SQL (e.g. FOR UPDATE SKIP LOCKED) is written for Postgres.
+// All objects live in the "callcenter" schema so this app can share a database
+// (e.g. one Supabase project) with other apps that use "public". Raw SQL must
+// qualify table names with "callcenter." to match.
 datasource db {
   provider = "postgresql"
+  schemas  = ["callcenter"]
 }
 
 enum EntityStatus {
   active
   inactive
+
+  @@schema("callcenter")
 }
 
 enum CallLogStatus {
   in_progress
   answered
   not_answered
+
+  @@schema("callcenter")
 }
 
 model AdminUser {
@@ -30,6 +38,7 @@ model AdminUser {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("admin_users")
+  @@schema("callcenter")
 }
 
 model State {
@@ -42,6 +51,7 @@ model State {
   assignments UserStateAssignment[]
 
   @@map("states")
+  @@schema("callcenter")
 }
 
 model AreaCodeMap {
@@ -52,6 +62,7 @@ model AreaCodeMap {
 
   @@index([stateId])
   @@map("area_code_map")
+  @@schema("callcenter")
 }
 
 model Switch {
@@ -67,6 +78,7 @@ model Switch {
   callLogs      CallLog[]
 
   @@map("switches")
+  @@schema("callcenter")
 }
 
 model User {
@@ -84,6 +96,7 @@ model User {
   callLogs      CallLog[]
 
   @@map("users")
+  @@schema("callcenter")
 }
 
 model UserStateAssignment {
@@ -97,6 +110,7 @@ model UserStateAssignment {
 
   @@unique([userId, stateId])
   @@map("user_state_assignments")
+  @@schema("callcenter")
 }
 
 model ApiKey {
@@ -109,6 +123,7 @@ model ApiKey {
 
   @@index([userId])
   @@map("api_keys")
+  @@schema("callcenter")
 }
 
 model Did {
@@ -129,6 +144,7 @@ model Did {
 
   @@index([stateId, assignedTo, status, isInUse, totalUses])
   @@map("dids")
+  @@schema("callcenter")
 }
 
 model CallLog {
@@ -149,6 +165,7 @@ model CallLog {
   @@index([userId, startedAt])
   @@index([switchId])
   @@map("call_logs")
+  @@schema("callcenter")
 }
 
 model SystemSettings {
@@ -158,4 +175,5 @@ model SystemSettings {
   apiRateLimitPerMinute Int    @default(120) @map("api_rate_limit_per_minute")
 
   @@map("system_settings")
+  @@schema("callcenter")
 }

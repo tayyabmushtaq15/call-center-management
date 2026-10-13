@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       const picked = await tx.$queryRaw<Array<{ id: number; number: string }>>(
         Prisma.sql`
           SELECT d.id, d.number
-          FROM dids d
+          FROM callcenter.dids d
           WHERE d.state_id = ${stateId}
             AND d.assigned_to = ${userId}
             AND d.status::text = 'active'

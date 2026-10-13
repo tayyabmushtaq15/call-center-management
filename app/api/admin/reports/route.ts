@@ -67,9 +67,9 @@ export async function GET(req: Request) {
         SELECT s.code,
           COUNT(*)::bigint AS calls,
           SUM(CASE WHEN cl.call_status = 'answered' THEN 1 ELSE 0 END)::bigint AS answered
-        FROM call_logs cl
-        JOIN dids d ON d.id = cl.did_id
-        JOIN states s ON s.id = d.state_id
+        FROM callcenter.call_logs cl
+        JOIN callcenter.dids d ON d.id = cl.did_id
+        JOIN callcenter.states s ON s.id = d.state_id
         WHERE cl.started_at >= ${from} AND cl.started_at <= ${to}
         GROUP BY s.code
         ORDER BY calls DESC

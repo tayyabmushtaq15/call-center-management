@@ -73,7 +73,7 @@ export async function getDashboardPayload() {
 
   const hourly = await prisma.$queryRaw<Array<{ h: number; c: bigint }>>`
     SELECT EXTRACT(HOUR FROM started_at)::int AS h, COUNT(*)::bigint AS c
-    FROM call_logs
+    FROM callcenter.call_logs
     WHERE started_at >= ${start}
     GROUP BY 1
     ORDER BY 1
@@ -83,9 +83,9 @@ export async function getDashboardPayload() {
     Array<{ code: string; c: bigint }>
   >`
     SELECT s.code, COUNT(*)::bigint AS c
-    FROM call_logs cl
-    JOIN dids d ON d.id = cl.did_id
-    JOIN states s ON s.id = d.state_id
+    FROM callcenter.call_logs cl
+    JOIN callcenter.dids d ON d.id = cl.did_id
+    JOIN callcenter.states s ON s.id = d.state_id
     WHERE cl.started_at >= ${start}
     GROUP BY s.code
     ORDER BY c DESC
@@ -97,7 +97,7 @@ export async function getDashboardPayload() {
     SELECT date_trunc('day', started_at) AS day,
       SUM(CASE WHEN call_status = 'answered' THEN 1 ELSE 0 END)::bigint AS answered,
       COUNT(*)::bigint AS total
-    FROM call_logs
+    FROM callcenter.call_logs
     WHERE started_at >= ${weekStart}
     GROUP BY 1
     ORDER BY 1

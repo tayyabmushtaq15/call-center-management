@@ -20,8 +20,8 @@ export default async function StatesPage() {
     Array<{ state_id: number; c: bigint }>
   >`
     SELECT d.state_id, COUNT(*)::bigint AS c
-    FROM call_logs cl
-    JOIN dids d ON d.id = cl.did_id
+    FROM callcenter.call_logs cl
+    JOIN callcenter.dids d ON d.id = cl.did_id
     WHERE cl.started_at >= ${start}
     GROUP BY d.state_id
   `;
