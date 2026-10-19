@@ -124,7 +124,7 @@ export async function GET(req: Request) {
         _count: { _all: true },
       });
       const switches = await prisma.switch.findMany({
-        where: { id: { in: rows.map((r) => r.switchId) } },
+        where: { id: { in: rows.flatMap((r) => (r.switchId === null ? [] : [r.switchId])) } },
         include: { _count: { select: { users: true } } },
       });
       const sm = new Map(switches.map((s) => [s.id, s]));
@@ -142,9 +142,9 @@ export async function GET(req: Request) {
       const dm = new Map(dur.map((d) => [d.switchId, d._sum.duration ?? 0]));
       return NextResponse.json({
         rows: rows.map((r) => {
-          const sw = sm.get(r.switchId);
+          const sw = r.switchId === null ? undefined : sm.get(r.switchId);
           return {
-            switch: sw?.name ?? "?",
+            switch: r.switchId === null ? "Dialer API" : (sw?.name ?? "?"),
             calls: r._count._all,
             answerRate: r._count._all
               ? (am.get(r.switchId) ?? 0) / r._count._all

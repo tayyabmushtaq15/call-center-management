@@ -25,6 +25,8 @@ enum CallLogStatus {
   in_progress
   answered
   not_answered
+  /// Dialer-flow call that ended (released or lease expired) without a reported outcome.
+  unknown
 
   @@schema("callcenter")
 }
@@ -88,7 +90,11 @@ model User {
   password      String
   switchId      Int?                  @map("switch_id")
   status        EntityStatus          @default(active)
+  /// How long a DID handed out by GET /api/v1/did stays locked if no release arrives.
+  leaseSeconds  Int                   @default(180) @map("lease_seconds")
   createdAt     DateTime              @default(now()) @map("created_at")
+  allowedIps    AllowedIp[]
+  requestLogs   DidRequestLog[]
   switch        Switch?               @relation(fields: [switchId], references: [id])
   apiKeys       ApiKey[]
   dids          Did[]
@@ -96,6 +102,42 @@ model User {
   callLogs      CallLog[]
 
   @@map("users")
+  @@schema("callcenter")
+}
+
+/// Dialer server IPs (exact IPv4/IPv6 or IPv4 CIDR) allowed to call the dialer API for a call center.
+model AllowedIp {
+  id        Int          @id @default(autoincrement())
+  userId    Int          @map("user_id")
+  ip        String
+  label     String?
+  status    EntityStatus @default(active)
+  createdAt DateTime     @default(now()) @map("created_at")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ip])
+  @@map("allowed_ips")
+  @@schema("callcenter")
+}
+
+/// One row per dialer-API request (GET /api/v1/did and /release), accepted or not.
+model DidRequestLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @map("user_id")
+  kind        String   @db.VarChar(10)
+  ip          String
+  destination String?
+  didNumber   String?  @map("did_number")
+  /// ok | fallback | rejected
+  outcome     String   @db.VarChar(10)
+  reason      String?
+  latencyMs   Int      @map("latency_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("did_request_logs")
   @@schema("callcenter")
 }
 
@@ -137,6 +179,8 @@ model Did {
   assignedAt  DateTime?    @map("assigned_at")
   totalUses   Int          @default(0) @map("total_uses")
   lastUsedAt  DateTime?    @map("last_used_at")
+  /// Set while handed out via the dialer API; the DID is free again once this passes.
+  leaseExpiresAt DateTime? @map("lease_expires_at")
   createdAt   DateTime     @default(now()) @map("created_at")
   state       State        @relation(fields: [stateId], references: [id])
   user        User?        @relation(fields: [assignedTo], references: [id])
@@ -151,7 +195,7 @@ model CallLog {
   id             Int           @id @default(autoincrement())
   userId         Int           @map("user_id")
   didId          Int           @map("did_id")
-  switchId       Int           @map("switch_id")
+  switchId       Int?          @map("switch_id")
   receiverNumber String        @map("receiver_number")
   receiverState  String        @map("receiver_state") @db.VarChar(2)
   callStatus     CallLogStatus @default(in_progress) @map("call_status")
@@ -160,7 +204,7 @@ model CallLog {
   endedAt        DateTime?     @map("ended_at")
   user           User          @relation(fields: [userId], references: [id])
   did            Did           @relation(fields: [didId], references: [id])
-  switch         Switch        @relation(fields: [switchId], references: [id])
+  switch         Switch?       @relation(fields: [switchId], references: [id])
 
   @@index([userId, startedAt])
   @@index([switchId])

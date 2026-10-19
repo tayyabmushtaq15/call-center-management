@@ -77,7 +77,7 @@ export default async function DashboardPage() {
                     <td className="px-4 py-3 font-mono text-slate-200">{c.did.number}</td>
                     <td className="px-4 py-3 font-mono text-slate-200">{c.receiverNumber}</td>
                     <td className="px-4 py-3 text-slate-200">{c.user.name}</td>
-                    <td className="px-4 py-3 text-slate-200">{c.switch.name}</td>
+                    <td className="px-4 py-3 text-slate-200">{c.switch?.name ?? "Dialer"}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">
                       {c.startedAt.toLocaleString()}
                     </td>

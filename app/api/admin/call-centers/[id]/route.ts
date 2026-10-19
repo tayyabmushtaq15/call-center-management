@@ -20,6 +20,7 @@ export async function GET(
       name: true,
       email: true,
       status: true,
+      leaseSeconds: true,
       switchId: true,
       createdAt: true,
       switch: true,
@@ -69,6 +70,7 @@ const patchSchema = z.object({
   password: z.string().min(8).optional(),
   switchId: z.number().nullable().optional(),
   status: z.enum(["active", "inactive"]).optional(),
+  leaseSeconds: z.number().int().min(10).max(14400).optional(),
 });
 
 export async function PATCH(
@@ -92,6 +94,7 @@ export async function PATCH(
           : { connect: { id: rest.switchId } };
     }
     if (rest.status !== undefined) data.status = rest.status;
+    if (rest.leaseSeconds !== undefined) data.leaseSeconds = rest.leaseSeconds;
     if (password) data.password = await bcrypt.hash(password, 12);
     await prisma.user.update({
       where: { id: userId },

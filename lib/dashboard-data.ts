@@ -54,9 +54,10 @@ export async function getDashboardPayload() {
         did: { select: { number: true } },
       },
     }),
+    // The dialer API draws from every active DID, so "low pool" is per-state active DIDs.
     prisma.did.groupBy({
       by: ["stateId"],
-      where: { assignedTo: null },
+      where: { status: "active" },
       _count: { _all: true },
     }),
   ]);

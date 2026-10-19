@@ -4,40 +4,40 @@ import { useCallback, useEffect, useState } from "react";
 import { PageHeader, StatTile, cardClass, inputClass, PrimaryButton } from "@/components/admin-chrome";
 
 type SwitchOpt = { id: number; name: string };
-type StateOption = {
+type AllowedIpRow = { id: number; ip: string; label: string | null; status: string };
+type RequestRow = {
   id: number;
-  name: string;
-  code: string;
-  status: string;
-  poolDids: number;
-  assignedDids: number;
-  callsToday: number;
+  kind: string;
+  ip: string;
+  destination: string | null;
+  didNumber: string | null;
+  outcome: string;
+  reason: string | null;
+  latencyMs: number;
+  createdAt: string;
 };
-type Assignment = {
-  id: number;
-  stateId: number;
-  didCount: number;
-  state: { code: string; name: string };
-};
-
 export function CallCenterDetail({ id }: { id: number }) {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [switches, setSwitches] = useState<SwitchOpt[]>([]);
-  const [allStates, setAllStates] = useState<StateOption[]>([]);
-  const [autoCount, setAutoCount] = useState(5);
-  const [manualStateId, setManualStateId] = useState("");
-  const [manualCount, setManualCount] = useState(5);
-  const [msg, setMsg] = useState("");
+  const [ips, setIps] = useState<AllowedIpRow[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [newIp, setNewIp] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [ipMsg, setIpMsg] = useState("");
+  const [lease, setLease] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const [u, sw, st] = await Promise.all([
+    const [u, sw, ipRes, reqRes] = await Promise.all([
       fetch(`/api/admin/call-centers/${id}`).then((r) => r.json()),
       fetch("/api/admin/switches").then((r) => r.json()),
-      fetch("/api/admin/states").then((r) => r.json()),
+      fetch(`/api/admin/call-centers/${id}/ips`).then((r) => r.json()),
+      fetch(`/api/admin/call-centers/${id}/requests`).then((r) => r.json()),
     ]);
     setData(u);
+    setIps(ipRes.ips ?? []);
+    setRequests(reqRes.requests ?? []);
+    setLease((prev) => prev ?? u.user?.leaseSeconds ?? 180);
     setSwitches(sw.switches ?? []);
-    setAllStates(st.states ?? []);
   }, [id]);
 
   useEffect(() => {
@@ -57,9 +57,9 @@ export function CallCenterDetail({ id }: { id: number }) {
     name: string;
     email: string;
     status: string;
+    leaseSeconds: number;
     switchId: number | null;
     apiKeys: { id: number; key: string; status: string }[];
-    assignments: Assignment[];
   };
   const stats = data.stats as Record<string, number>;
 
@@ -73,56 +73,52 @@ export function CallCenterDetail({ id }: { id: number }) {
     await load();
   }
 
-  async function runAuto() {
-    setMsg("");
-    const res = await fetch(`/api/admin/call-centers/${id}/assign`, {
+  async function addIp() {
+    setIpMsg("");
+    const res = await fetch(`/api/admin/call-centers/${id}/ips`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "auto_all", count: autoCount }),
+      body: JSON.stringify({ ip: newIp.trim(), label: newLabel.trim() || undefined }),
     });
-    if (!res.ok) setMsg("Assign failed");
-    else setMsg("Auto-assign completed");
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setIpMsg(j.error ?? "Could not add IP");
+      return;
+    }
+    setNewIp("");
+    setNewLabel("");
     await load();
   }
 
-  async function runManual() {
-    setMsg("");
-    if (!manualStateId) {
-      setMsg("Select a state");
-      return;
-    }
-    const sid = Number(manualStateId);
-    if (!Number.isFinite(sid)) {
-      setMsg("Invalid state");
-      return;
-    }
-    const res = await fetch(`/api/admin/call-centers/${id}/assign`, {
-      method: "POST",
+  async function toggleIp(ipId: number, status: string) {
+    await fetch(`/api/admin/call-centers/${id}/ips`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "manual",
-        items: [{ stateId: sid, count: manualCount }],
-      }),
+      body: JSON.stringify({ ipId, status: status === "active" ? "inactive" : "active" }),
     });
-    if (!res.ok) setMsg("Assign failed");
-    else setMsg("Manual assign completed");
     await load();
   }
 
-  async function release(stateId: number) {
-    await fetch(`/api/admin/call-centers/${id}/release-state`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stateId }),
-    });
+  async function removeIp(ipId: number) {
+    await fetch(`/api/admin/call-centers/${id}/ips?ipId=${ipId}`, { method: "DELETE" });
     await load();
+  }
+
+  async function saveLease() {
+    setIpMsg("");
+    const res = await fetch(`/api/admin/call-centers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leaseSeconds: lease }),
+    });
+    setIpMsg(res.ok ? "Lease saved" : "Lease must be 10-14400 seconds");
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
         title={user.name}
-        description={`${user.email} — status: ${user.status}. Assign DIDs from the shared pool and route traffic through a switch.`}
+        description={`${user.email} — status: ${user.status}. Dials any DID in the shared pool through the dialer API.`}
       />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatTile title="Calls today" value={String(stats.callsToday)} />
@@ -131,7 +127,7 @@ export function CallCenterDetail({ id }: { id: number }) {
           value={`${(Number(stats.answerRateToday) * 100).toFixed(1)}%`}
           accent="violet"
         />
-        <StatTile title="DIDs assigned" value={String(stats.totalDidsAssigned)} />
+        <StatTile title="Calls (30 days)" value={String(stats.callsMonth)} />
       </div>
 
       <div className={`${cardClass} p-5`}>
@@ -163,93 +159,79 @@ export function CallCenterDetail({ id }: { id: number }) {
       </div>
 
       <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">Auto-assign (all states)</h2>
-        <p className="mt-0.5 text-xs text-slate-400">Pulls the same count from the pool in every state that has enough capacity.</p>
+        <h2 className="text-sm font-semibold text-slate-100">Dialer API access</h2>
+        <p className="mt-0.5 text-xs text-slate-400">
+          Dial plans call <span className="font-mono">GET /api/v1/did</span> from these server IPs only (single IP or IPv4 CIDR).
+          With no active IP listed, every request from this call center is rejected.
+        </p>
+        <ul className="mt-3 space-y-2 text-xs text-slate-200">
+          {ips.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-600/50 bg-slate-900/40 px-3 py-2">
+              <span className="font-mono">{r.ip}</span>
+              <span className="text-slate-400">{r.label ?? ""}</span>
+              <span className={r.status === "active" ? "text-emerald-400" : "text-slate-500"}>{r.status}</span>
+              <button type="button" className="ml-auto text-slate-300 hover:underline" onClick={() => void toggleIp(r.id, r.status)}>
+                {r.status === "active" ? "Disable" : "Enable"}
+              </button>
+              <button type="button" className="text-rose-400 hover:underline" onClick={() => void removeIp(r.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+          {ips.length === 0 ? <li className="text-slate-500">No IPs listed, so this call center cannot use the dialer API yet.</li> : null}
+        </ul>
         <div className="mt-3 flex flex-wrap items-end gap-2">
-          <div>
-            <div className="text-xs font-medium text-slate-400">Per state</div>
+          <input className={`${inputClass} w-52`} placeholder="203.0.113.10 or 203.0.113.0/28" value={newIp} onChange={(e) => setNewIp(e.target.value)} />
+          <input className={`${inputClass} w-44`} placeholder="Label (e.g. Dialer 1)" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
+          <PrimaryButton onClick={() => void addIp()}>Add IP</PrimaryButton>
+        </div>
+        <div className="mt-5 flex flex-wrap items-end gap-2">
+          <label>
+            <div className="text-xs font-medium text-slate-400">DID lease (seconds), the safety net when no release arrives</div>
             <input
               type="number"
-              min={1}
-              max={500}
-              className={`mt-1.5 w-24 ${inputClass}`}
-              value={autoCount}
-              onChange={(e) => setAutoCount(Number(e.target.value))}
+              min={10}
+              max={14400}
+              className={`mt-1.5 w-28 ${inputClass}`}
+              value={lease ?? user.leaseSeconds}
+              onChange={(e) => setLease(Number(e.target.value))}
             />
-          </div>
-          <PrimaryButton onClick={() => void runAuto()}>Assign to all states</PrimaryButton>
+          </label>
+          <PrimaryButton onClick={() => void saveLease()}>Save lease</PrimaryButton>
         </div>
+        {ipMsg ? <p className="mt-2 text-sm text-slate-300">{ipMsg}</p> : null}
       </div>
 
       <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">Manual assign</h2>
-        <p className="mt-0.5 text-xs text-slate-400">Choose a state and how many DIDs to pull from the unassigned pool.</p>
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="min-w-0 sm:min-w-[240px]">
-            <div className="text-xs font-medium text-slate-400">State</div>
-            <select
-              className={`${inputClass} mt-1.5 min-w-0 w-full sm:w-72`}
-              value={manualStateId}
-              onChange={(e) => setManualStateId(e.target.value)}
-            >
-              <option value="">Select a state…</option>
-              {allStates
-                .filter((s) => s.status === "active")
-                .map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.name} ({s.code}) — {s.poolDids} in pool
-                  </option>
-                ))}
-            </select>
-          </label>
-          <div>
-            <div className="text-xs font-medium text-slate-400">DIDs to assign</div>
-            <input
-              type="number"
-              min={1}
-              max={5000}
-              className={`mt-1.5 w-24 ${inputClass}`}
-              value={manualCount}
-              onChange={(e) => setManualCount(Number(e.target.value))}
-            />
-          </div>
-          <PrimaryButton onClick={() => void runManual()}>Assign from pool</PrimaryButton>
-        </div>
-      </div>
-
-      {msg ? <p className="text-sm text-slate-300">{msg}</p> : null}
-
-      <div className="overflow-hidden rounded-2xl border border-slate-600/40 bg-slate-800/50 shadow-lg ring-1 ring-slate-700/30">
-        <div className="border-b border-slate-600/50 bg-slate-800/30 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-100">State assignments</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] text-left text-sm">
-            <thead className="bg-slate-800/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <h2 className="text-sm font-semibold text-slate-100">Recent dialer API requests</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead className="text-slate-400">
               <tr>
-                <th className="px-4 py-3">State</th>
-                <th className="px-4 py-3">DID count</th>
-                <th className="px-4 py-3" />
+                <th className="px-2 py-1.5">Time</th>
+                <th className="px-2 py-1.5">Type</th>
+                <th className="px-2 py-1.5">IP</th>
+                <th className="px-2 py-1.5">Dialed</th>
+                <th className="px-2 py-1.5">DID</th>
+                <th className="px-2 py-1.5">Result</th>
+                <th className="px-2 py-1.5">ms</th>
               </tr>
             </thead>
-            <tbody>
-              {user.assignments.map((a) => (
-                <tr key={a.id} className="border-t border-slate-700/50">
-                  <td className="px-4 py-3 text-slate-200">
-                    {a.state.name} ({a.state.code})
-                  </td>
-                  <td className="px-4 py-3 tabular-nums text-slate-200">{a.didCount}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className="text-sm font-medium text-rose-400 hover:text-rose-300 hover:underline"
-                      onClick={() => void release(a.stateId)}
-                    >
-                      Release pool DIDs
-                    </button>
-                  </td>
+            <tbody className="text-slate-200">
+              {requests.map((r) => (
+                <tr key={r.id} className="border-t border-slate-700/50">
+                  <td className="px-2 py-1.5 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
+                  <td className="px-2 py-1.5">{r.kind}</td>
+                  <td className="px-2 py-1.5 font-mono">{r.ip}</td>
+                  <td className="px-2 py-1.5 font-mono">{r.destination ?? "-"}</td>
+                  <td className="px-2 py-1.5 font-mono">{r.didNumber ?? "-"}</td>
+                  <td className="px-2 py-1.5">{r.outcome}{r.reason ? ` (${r.reason})` : ""}</td>
+                  <td className="px-2 py-1.5 tabular-nums">{r.latencyMs}</td>
                 </tr>
               ))}
+              {requests.length === 0 ? (
+                <tr><td colSpan={7} className="px-2 py-3 text-slate-500">No requests yet.</td></tr>
+              ) : null}
             </tbody>
           </table>
         </div>

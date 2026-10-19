@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     state: l.receiverState,
     did: l.did.number,
     call_center: l.user.name,
-    switch: l.switch.name,
+    switch: l.switch?.name ?? "Dialer",
     status: l.callStatus,
     duration: l.duration ?? "",
     started: l.startedAt.toISOString(),
