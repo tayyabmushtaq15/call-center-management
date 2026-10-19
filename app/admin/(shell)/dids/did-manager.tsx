@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cardClass, inputClass, PrimaryButton, SecondaryButton } from "@/components/admin-chrome";
+import { inputClass, labelClass, PrimaryButton, SecondaryButton } from "@/components/admin-chrome";
+import { Modal } from "@/components/Modal";
 import { extractPhonesFromDataFile, extractPhonesFromPastedText } from "@/lib/parse-did-import-file";
 
 const CHUNK = 10_000;
@@ -12,6 +13,7 @@ type DidRow = {
   areaCode: string;
   status: string;
   isInUse: boolean;
+  leaseExpiresAt: string | null;
   totalUses: number;
   lastUsedAt: string | null;
   createdAt: string;
@@ -38,6 +40,10 @@ export function DidManager() {
   const [bulk, setBulk] = useState("");
   const [msg, setMsg] = useState("");
   const [importing, setImporting] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [adding, setAdding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -52,26 +58,35 @@ export function DidManager() {
     void load();
   }, [load]);
 
-  async function addOne() {
-    setMsg("");
-    const res = await fetch("/api/admin/dids", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ number: single }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setMsg((j as { error?: string }).error ?? "Error");
-      return;
+  async function addOne(e: React.FormEvent) {
+    e.preventDefault();
+    setAddError("");
+    setAdding(true);
+    try {
+      const res = await fetch("/api/admin/dids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: single }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAddError((j as { error?: string }).error ?? "Could not add the DID.");
+        return;
+      }
+      setSingle("");
+      setAddOpen(false);
+      setMsg("DID added.");
+      await load();
+    } finally {
+      setAdding(false);
     }
-    setSingle("");
-    await load();
   }
 
   const runImport = useCallback(
     async (numbers: string[], onDone?: () => void) => {
       if (numbers.length === 0) {
         setMsg("No valid US 10-digit numbers found. Check format, area code map, and file contents.");
+        setImportOpen(false);
         return;
       }
       setImporting(true);
@@ -125,6 +140,7 @@ export function DidManager() {
           }) · dup in file: ${dupInFile} · already in DB: ${alreadyInDb} · skipped (total): ${skipped} · invalid: ${invalid} · unknown area code: ${unknown}`
         );
         onDone?.();
+        setImportOpen(false);
         await load();
       } finally {
         setImporting(false);
@@ -153,77 +169,104 @@ export function DidManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex max-w-lg flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium text-slate-400">Search</div>
-          <input
-            className={`${inputClass} mt-1`}
-            placeholder="Search by number…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex max-w-lg flex-1 flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <div className={labelClass}>Search</div>
+            <input
+              className={`${inputClass} mt-1`}
+              placeholder="Search by number…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <PrimaryButton onClick={() => void load()} className="h-[38px] shrink-0 self-stretch sm:self-end">
+            Search
+          </PrimaryButton>
         </div>
-        <PrimaryButton
-          onClick={() => void load()}
-          className="h-[38px] shrink-0 self-stretch sm:self-end"
-        >
-          Search
-        </PrimaryButton>
+        <div className="flex gap-2">
+          <SecondaryButton onClick={() => setImportOpen(true)}>Bulk import</SecondaryButton>
+          <PrimaryButton
+            onClick={() => {
+              setAddError("");
+              setAddOpen(true);
+            }}
+          >
+            Add DID
+          </PrimaryButton>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className={`${cardClass} p-5`}>
-          <h2 className="text-sm font-semibold text-slate-100">Add single DID</h2>
-          <p className="mt-0.5 text-xs text-slate-400">Area code and state are detected automatically.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+      <Modal
+        open={addOpen}
+        onClose={() => !adding && setAddOpen(false)}
+        title="Add DID"
+        description="Area code and state are detected automatically."
+      >
+        <form onSubmit={(e) => void addOne(e)} className="space-y-4">
+          <label className="block">
+            <span className={labelClass}>Phone number</span>
             <input
-              className={`min-w-0 flex-1 ${inputClass}`}
+              className={`${inputClass} mt-1.5`}
               placeholder="10 digits or +1…"
               value={single}
               onChange={(e) => setSingle(e.target.value)}
+              required
             />
-            <PrimaryButton onClick={() => void addOne()}>Add</PrimaryButton>
-          </div>
-        </div>
-        <div className={`${cardClass} p-5`}>
-          <h2 className="text-sm font-semibold text-slate-100">Bulk import</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            Paste numbers (one per line, CSV, or mixed) <strong>or</strong> upload a{" "}
-            <strong>CSV, TSV, or Excel</strong> file. Numbers are found in all columns and cells. Up to
-            10,000 per server request; larger lists are sent in chunks.
-          </p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,.tsv,.txt,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-            className="hidden"
-            onChange={(e) => void onFileSelected(e)}
-          />
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <SecondaryButton
-              type="button"
-              disabled={importing}
-              onClick={() => fileRef.current?.click()}
-            >
-              {importing ? "Importing…" : "Import file…"}
+          </label>
+          {addError ? (
+            <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+              {addError}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <SecondaryButton onClick={() => setAddOpen(false)} disabled={adding}>
+              Cancel
             </SecondaryButton>
-            <span className="text-xs text-slate-500">.csv, .tsv, .xls, .xlsx</span>
-          </div>
-          <textarea
-            className="mt-3 w-full rounded-lg border border-slate-600/60 bg-slate-900/60 px-3 py-2 font-mono text-sm text-slate-100 focus:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            rows={4}
-            value={bulk}
-            onChange={(e) => setBulk(e.target.value)}
-            placeholder={"5551234567\n+15551234568\nor paste a CSV row…"}
-            disabled={importing}
-          />
-          <div className="mt-2">
-            <PrimaryButton onClick={() => void importBulk()} disabled={importing}>
-              {importing ? "Importing…" : "Import from text"}
+            <PrimaryButton type="submit" disabled={adding}>
+              {adding ? "Adding…" : "Add DID"}
             </PrimaryButton>
           </div>
+        </form>
+      </Modal>
+
+      <Modal
+        wide
+        open={importOpen}
+        onClose={() => !importing && setImportOpen(false)}
+        title="Bulk import"
+        description="Paste numbers (one per line, CSV, or mixed) or upload a CSV, TSV, or Excel file. Numbers are found in all columns and cells. Lists over 10,000 are sent in chunks."
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,.tsv,.txt,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          className="hidden"
+          onChange={(e) => void onFileSelected(e)}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <SecondaryButton disabled={importing} onClick={() => fileRef.current?.click()}>
+            {importing ? "Importing…" : "Import file…"}
+          </SecondaryButton>
+          <span className="text-xs text-slate-500">.csv, .tsv, .xls, .xlsx</span>
         </div>
-      </div>
+        <textarea
+          className="mt-4 w-full rounded-lg border border-slate-600/60 bg-slate-900/60 px-3 py-2 font-mono text-sm text-slate-100 focus:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          rows={6}
+          value={bulk}
+          onChange={(e) => setBulk(e.target.value)}
+          placeholder={"5551234567\n+15551234568\nor paste a CSV row…"}
+          disabled={importing}
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <SecondaryButton onClick={() => setImportOpen(false)} disabled={importing}>
+            Cancel
+          </SecondaryButton>
+          <PrimaryButton onClick={() => void importBulk()} disabled={importing || !bulk.trim()}>
+            {importing ? "Importing…" : "Import from text"}
+          </PrimaryButton>
+        </div>
+      </Modal>
 
       {msg ? (
         <p className="rounded-lg border border-slate-600/50 bg-slate-800/50 px-3 py-2 text-sm text-slate-300">
@@ -241,8 +284,8 @@ export function DidManager() {
               <tr>
                 <th className="px-4 py-3">Number</th>
                 <th className="px-4 py-3">State</th>
-                <th className="px-4 py-3">Assignment</th>
                 <th className="px-4 py-3">In use</th>
+                <th className="px-4 py-3">Used by</th>
                 <th className="px-4 py-3">Uses</th>
               </tr>
             </thead>
@@ -251,8 +294,10 @@ export function DidManager() {
                 <tr key={d.id} className="border-t border-slate-700/50">
                   <td className="px-4 py-3 font-mono text-slate-200">{d.number}</td>
                   <td className="px-4 py-3 text-slate-200">{d.state.code}</td>
-                  <td className="px-4 py-3 text-slate-200">{d.user?.name ?? "Pool"}</td>
-                  <td className="px-4 py-3 text-slate-200">{d.isInUse ? "yes" : "no"}</td>
+                  <td className="px-4 py-3 text-slate-200">
+                    {d.isInUse && d.leaseExpiresAt && new Date(d.leaseExpiresAt) > new Date() ? "yes" : "no"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-200">{d.user?.name ?? "-"}</td>
                   <td className="px-4 py-3 tabular-nums text-slate-200">{d.totalUses}</td>
                 </tr>
               ))}

@@ -6,14 +6,15 @@ export default async function StatesPage() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const states = await prisma.state.findMany({ orderBy: { name: "asc" } });
+  // One shared pool: active DIDs per state, and how many are on a call right now.
   const poolByState = await prisma.did.groupBy({
     by: ["stateId"],
-    where: { assignedTo: null },
+    where: { status: "active" },
     _count: { _all: true },
   });
   const assignedByState = await prisma.did.groupBy({
     by: ["stateId"],
-    where: { assignedTo: { not: null } },
+    where: { status: "active", isInUse: true, leaseExpiresAt: { gt: new Date() } },
     _count: { _all: true },
   });
   const callsByStateToday = await prisma.$queryRaw<
@@ -47,7 +48,7 @@ export default async function StatesPage() {
     <div className="space-y-6">
       <PageHeader
         title="States"
-        description="All 52 U.S. regions are pre-loaded. Toggle a state off to block new assignments there."
+        description="All 52 U.S. regions are pre-loaded. Toggle a state off to stop the dialer API handing out DIDs for it."
       />
       <StatesClient initialRows={rows} />
     </div>

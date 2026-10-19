@@ -164,7 +164,7 @@ async function main() {
       id: 1,
       systemName: "Local Presence Dialing",
       lowPoolWarningThreshold: 5,
-      apiRateLimitPerMinute: 120,
+      apiRateLimitPerMinute: 6000,
     },
     update: {},
   });

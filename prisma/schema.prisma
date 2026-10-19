@@ -91,7 +91,7 @@ model User {
   switchId      Int?                  @map("switch_id")
   status        EntityStatus          @default(active)
   /// How long a DID handed out by GET /api/v1/did stays locked if no release arrives.
-  leaseSeconds  Int                   @default(180) @map("lease_seconds")
+  leaseSeconds  Int                   @default(3600) @map("lease_seconds")
   createdAt     DateTime              @default(now()) @map("created_at")
   allowedIps    AllowedIp[]
   requestLogs   DidRequestLog[]
@@ -187,6 +187,7 @@ model Did {
   callLogs    CallLog[]
 
   @@index([stateId, assignedTo, status, isInUse, totalUses])
+  @@index([stateId, status, totalUses, id])
   @@map("dids")
   @@schema("callcenter")
 }
@@ -216,7 +217,7 @@ model SystemSettings {
   id                    Int    @id @default(1)
   systemName            String @default("Local Presence Dialing") @map("system_name")
   lowPoolWarningThreshold Int  @default(5) @map("low_pool_warning_threshold")
-  apiRateLimitPerMinute Int    @default(120) @map("api_rate_limit_per_minute")
+  apiRateLimitPerMinute Int    @default(6000) @map("api_rate_limit_per_minute")
 
   @@map("system_settings")
   @@schema("callcenter")

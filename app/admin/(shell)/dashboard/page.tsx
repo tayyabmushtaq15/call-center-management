@@ -14,11 +14,9 @@ export default async function DashboardPage() {
       />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile title="Total DIDs" value={stats.totalDids} accent="default" />
-        <StatTile title="In pool" value={stats.poolDids} />
-        <StatTile title="Assigned" value={stats.assignedDids} accent="sky" />
+        <StatTile title="Free now" value={stats.freeDids} accent="sky" />
         <StatTile title="In use now" value={stats.inUseDids} accent="violet" />
         <StatTile title="Active call centers" value={stats.activeCenters} />
-        <StatTile title="Active switches" value={stats.activeSwitches} />
         <StatTile title="Calls today" value={stats.callsToday} />
         <StatTile
           title="Answer rate today"
@@ -41,7 +39,7 @@ export default async function DashboardPage() {
           <ul className="mt-2 list-inside list-disc text-sm text-rose-300/90">
             {data.poolWarnings.map((w) => (
               <li key={w.state}>
-                {w.state}: only {w.count} DIDs in pool
+                {w.state}: only {w.count} active DIDs
               </li>
             ))}
           </ul>
@@ -60,14 +58,13 @@ export default async function DashboardPage() {
                 <th className="px-4 py-3">DID</th>
                 <th className="px-4 py-3">Receiver</th>
                 <th className="px-4 py-3">Call center</th>
-                <th className="px-4 py-3">Switch</th>
                 <th className="px-4 py-3">Started</th>
               </tr>
             </thead>
             <tbody>
               {data.activeCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
                     No active calls
                   </td>
                 </tr>
@@ -77,7 +74,6 @@ export default async function DashboardPage() {
                     <td className="px-4 py-3 font-mono text-slate-200">{c.did.number}</td>
                     <td className="px-4 py-3 font-mono text-slate-200">{c.receiverNumber}</td>
                     <td className="px-4 py-3 text-slate-200">{c.user.name}</td>
-                    <td className="px-4 py-3 text-slate-200">{c.switch?.name ?? "Dialer"}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">
                       {c.startedAt.toLocaleString()}
                     </td>

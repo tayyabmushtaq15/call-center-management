@@ -8,7 +8,6 @@ export async function GET(req: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
-  const switchId = searchParams.get("switchId");
   const state = searchParams.get("state");
   const status = searchParams.get("status");
   const from = searchParams.get("from");
@@ -17,7 +16,6 @@ export async function GET(req: Request) {
 
   const where: Prisma.CallLogWhereInput = {};
   if (userId) where.userId = Number(userId);
-  if (switchId) where.switchId = Number(switchId);
   if (state) where.receiverState = state;
   if (status === "answered" || status === "not_answered" || status === "in_progress") {
     where.callStatus = status;
@@ -41,7 +39,6 @@ export async function GET(req: Request) {
     include: {
       user: { select: { name: true } },
       did: { select: { number: true } },
-      switch: { select: { name: true } },
     },
   });
 

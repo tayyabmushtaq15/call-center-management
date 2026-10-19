@@ -35,19 +35,19 @@ export function normalizeDidParam(raw: string | null): string | null {
   return raw ? normalizeUsPhone(raw) : null;
 }
 
-type AreaEntry = { stateId: number; code: string };
+type AreaEntry = { stateId: number; code: string; active: boolean };
 let areaCache: { at: number; map: Map<string, AreaEntry> } | null = null;
-const AREA_TTL_MS = 5 * 60_000;
+const AREA_TTL_MS = 30_000;
 
 export async function lookupState(areaCode: string): Promise<AreaEntry | null> {
   const now = Date.now();
   if (!areaCache || now - areaCache.at > AREA_TTL_MS) {
     const rows = await prisma.areaCodeMap.findMany({
-      include: { state: { select: { code: true } } },
+      include: { state: { select: { code: true, status: true } } },
     });
     areaCache = {
       at: now,
-      map: new Map(rows.map((r) => [r.areaCode, { stateId: r.stateId, code: r.state.code }])),
+      map: new Map(rows.map((r) => [r.areaCode, { stateId: r.stateId, code: r.state.code, active: r.state.status === "active" }])),
     };
   }
   return areaCache.map.get(areaCode) ?? null;

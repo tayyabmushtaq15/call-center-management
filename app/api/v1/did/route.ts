@@ -46,6 +46,7 @@ export async function GET(req: Request) {
   try {
     const area = await lookupState(npa);
     if (!area) return fail("unknown_area_code");
+    if (!area.active) return fail("state_inactive");
 
     const picked = await prisma.$transaction(async (tx) => {
       // Any call center may use any DID in the shared pool; no per-center assignment.

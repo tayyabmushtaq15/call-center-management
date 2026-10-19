@@ -11,14 +11,15 @@ export async function GET() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
+  // One shared pool: active DIDs per state, and how many are on a call right now.
   const poolByState = await prisma.did.groupBy({
     by: ["stateId"],
-    where: { assignedTo: null },
+    where: { status: "active" },
     _count: { _all: true },
   });
   const assignedByState = await prisma.did.groupBy({
     by: ["stateId"],
-    where: { assignedTo: { not: null } },
+    where: { status: "active", isInUse: true, leaseExpiresAt: { gt: new Date() } },
     _count: { _all: true },
   });
   const callsByStateToday = await prisma.$queryRaw<

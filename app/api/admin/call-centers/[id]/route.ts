@@ -21,11 +21,8 @@ export async function GET(
       email: true,
       status: true,
       leaseSeconds: true,
-      switchId: true,
       createdAt: true,
-      switch: true,
       apiKeys: { select: { id: true, key: true, status: true, lastUsedAt: true } },
-      assignments: { include: { state: true } },
     },
   });
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -37,7 +34,7 @@ export async function GET(
   const monthAgo = new Date(start);
   monthAgo.setDate(monthAgo.getDate() - 30);
 
-  const [today, week, month, answered, duration, didCount] = await Promise.all([
+  const [today, week, month, answered, duration] = await Promise.all([
     prisma.callLog.count({ where: { userId, startedAt: { gte: start } } }),
     prisma.callLog.count({ where: { userId, startedAt: { gte: weekAgo } } }),
     prisma.callLog.count({ where: { userId, startedAt: { gte: monthAgo } } }),
@@ -48,7 +45,6 @@ export async function GET(
       where: { userId, startedAt: { gte: start } },
       _sum: { duration: true },
     }),
-    prisma.did.count({ where: { assignedTo: userId } }),
   ]);
 
   return NextResponse.json({
@@ -59,7 +55,6 @@ export async function GET(
       callsMonth: month,
       answerRateToday: today ? answered / today : 0,
       talkSecondsToday: duration._sum.duration ?? 0,
-      totalDidsAssigned: didCount,
     },
   });
 }
@@ -68,7 +63,6 @@ const patchSchema = z.object({
   name: z.string().optional(),
   email: z.string().email().optional(),
   password: z.string().min(8).optional(),
-  switchId: z.number().nullable().optional(),
   status: z.enum(["active", "inactive"]).optional(),
   leaseSeconds: z.number().int().min(10).max(14400).optional(),
 });
@@ -87,12 +81,6 @@ export async function PATCH(
     const data: Prisma.UserUpdateInput = {};
     if (rest.name !== undefined) data.name = rest.name;
     if (rest.email !== undefined) data.email = rest.email;
-    if (rest.switchId !== undefined) {
-      data.switch =
-        rest.switchId === null
-          ? { disconnect: true }
-          : { connect: { id: rest.switchId } };
-    }
     if (rest.status !== undefined) data.status = rest.status;
     if (rest.leaseSeconds !== undefined) data.leaseSeconds = rest.leaseSeconds;
     if (password) data.password = await bcrypt.hash(password, 12);

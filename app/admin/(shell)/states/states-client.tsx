@@ -39,8 +39,8 @@ export function StatesClient({ initialRows }: { initialRows: Row[] }) {
             <tr>
               <th className="px-4 py-3">State</th>
               <th className="px-4 py-3">Code</th>
-              <th className="px-4 py-3">Pool DIDs</th>
-              <th className="px-4 py-3">Assigned</th>
+              <th className="px-4 py-3">Active DIDs</th>
+              <th className="px-4 py-3">In use now</th>
               <th className="px-4 py-3">Calls today</th>
               <th className="px-4 py-3">Status</th>
             </tr>

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, StatTile, cardClass, inputClass, PrimaryButton } from "@/components/admin-chrome";
 
-type SwitchOpt = { id: number; name: string };
 type AllowedIpRow = { id: number; ip: string; label: string | null; status: string };
 type RequestRow = {
   id: number;
@@ -18,7 +17,6 @@ type RequestRow = {
 };
 export function CallCenterDetail({ id }: { id: number }) {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
-  const [switches, setSwitches] = useState<SwitchOpt[]>([]);
   const [ips, setIps] = useState<AllowedIpRow[]>([]);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [newIp, setNewIp] = useState("");
@@ -27,9 +25,8 @@ export function CallCenterDetail({ id }: { id: number }) {
   const [lease, setLease] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const [u, sw, ipRes, reqRes] = await Promise.all([
+    const [u, ipRes, reqRes] = await Promise.all([
       fetch(`/api/admin/call-centers/${id}`).then((r) => r.json()),
-      fetch("/api/admin/switches").then((r) => r.json()),
       fetch(`/api/admin/call-centers/${id}/ips`).then((r) => r.json()),
       fetch(`/api/admin/call-centers/${id}/requests`).then((r) => r.json()),
     ]);
@@ -37,7 +34,6 @@ export function CallCenterDetail({ id }: { id: number }) {
     setIps(ipRes.ips ?? []);
     setRequests(reqRes.requests ?? []);
     setLease((prev) => prev ?? u.user?.leaseSeconds ?? 180);
-    setSwitches(sw.switches ?? []);
   }, [id]);
 
   useEffect(() => {
@@ -58,20 +54,9 @@ export function CallCenterDetail({ id }: { id: number }) {
     email: string;
     status: string;
     leaseSeconds: number;
-    switchId: number | null;
     apiKeys: { id: number; key: string; status: string }[];
   };
   const stats = data.stats as Record<string, number>;
-
-  async function saveSwitch(raw: string) {
-    const switchId = raw === "" ? null : Number(raw);
-    await fetch(`/api/admin/call-centers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ switchId }),
-    });
-    await load();
-  }
 
   async function addIp() {
     setIpMsg("");
@@ -128,23 +113,6 @@ export function CallCenterDetail({ id }: { id: number }) {
           accent="violet"
         />
         <StatTile title="Calls (30 days)" value={String(stats.callsMonth)} />
-      </div>
-
-      <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">Switch</h2>
-        <p className="mt-0.5 text-xs text-slate-400">Calls for this call center are routed here after get-DID.</p>
-        <select
-          className={`${inputClass} mt-3 max-w-md`}
-          defaultValue={user.switchId ?? ""}
-          onChange={(e) => void saveSwitch(e.target.value)}
-        >
-          <option value="">— none —</option>
-          {switches.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className={`${cardClass} p-5`}>

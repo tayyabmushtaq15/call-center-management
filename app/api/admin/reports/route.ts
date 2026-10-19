@@ -7,7 +7,6 @@ const types = z.enum([
   "summary",
   "by_state",
   "by_call_center",
-  "by_switch",
   "did_usage",
   "pool_health",
 ]);
@@ -117,44 +116,6 @@ export async function GET(req: Request) {
         })),
       });
     }
-    case "by_switch": {
-      const rows = await prisma.callLog.groupBy({
-        by: ["switchId"],
-        where: logWhere,
-        _count: { _all: true },
-      });
-      const switches = await prisma.switch.findMany({
-        where: { id: { in: rows.flatMap((r) => (r.switchId === null ? [] : [r.switchId])) } },
-        include: { _count: { select: { users: true } } },
-      });
-      const sm = new Map(switches.map((s) => [s.id, s]));
-      const answered = await prisma.callLog.groupBy({
-        by: ["switchId"],
-        where: { ...logWhere, callStatus: "answered" },
-        _count: { _all: true },
-      });
-      const am = new Map(answered.map((a) => [a.switchId, a._count._all]));
-      const dur = await prisma.callLog.groupBy({
-        by: ["switchId"],
-        where: logWhere,
-        _sum: { duration: true },
-      });
-      const dm = new Map(dur.map((d) => [d.switchId, d._sum.duration ?? 0]));
-      return NextResponse.json({
-        rows: rows.map((r) => {
-          const sw = r.switchId === null ? undefined : sm.get(r.switchId);
-          return {
-            switch: r.switchId === null ? "Dialer API" : (sw?.name ?? "?"),
-            calls: r._count._all,
-            answerRate: r._count._all
-              ? (am.get(r.switchId) ?? 0) / r._count._all
-              : 0,
-            talkSeconds: dm.get(r.switchId) ?? 0,
-            callCenters: sw?._count.users ?? 0,
-          };
-        }),
-      });
-    }
     case "did_usage": {
       const most = await prisma.did.findMany({
         orderBy: { totalUses: "desc" },
@@ -175,24 +136,25 @@ export async function GET(req: Request) {
       });
       const threshold = settings?.lowPoolWarningThreshold ?? 5;
       const states = await prisma.state.findMany({ orderBy: { code: "asc" } });
+      // Every call center draws from one shared pool: active DIDs per state, and how many are on a call right now.
       const pool = await prisma.did.groupBy({
         by: ["stateId"],
-        where: { assignedTo: null },
+        where: { status: "active" },
         _count: { _all: true },
       });
-      const assigned = await prisma.did.groupBy({
+      const busy = await prisma.did.groupBy({
         by: ["stateId"],
-        where: { assignedTo: { not: null } },
+        where: { status: "active", isInUse: true, leaseExpiresAt: { gt: new Date() } },
         _count: { _all: true },
       });
       const pm = new Map(pool.map((p) => [p.stateId, p._count._all]));
-      const am = new Map(assigned.map((a) => [a.stateId, a._count._all]));
+      const am = new Map(busy.map((a) => [a.stateId, a._count._all]));
       return NextResponse.json({
         threshold,
         rows: states.map((s) => ({
           state: s.code,
           pool: pm.get(s.id) ?? 0,
-          assigned: am.get(s.id) ?? 0,
+          inUse: am.get(s.id) ?? 0,
           low: (pm.get(s.id) ?? 0) < threshold,
         })),
       });

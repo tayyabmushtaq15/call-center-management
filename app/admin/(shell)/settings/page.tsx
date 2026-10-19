@@ -65,7 +65,7 @@ export default function SettingsPage() {
           />
         </label>
         <label className="block">
-          <span className={labelClass}>Low pool warning threshold (unassigned DIDs)</span>
+          <span className={labelClass}>Low pool warning threshold (active DIDs per state)</span>
           <input
             type="number"
             className={`${inputClass} mt-1.5`}

@@ -13,8 +13,7 @@ export async function GET() {
   const users = await prisma.user.findMany({
     orderBy: { id: "desc" },
     include: {
-      switch: { select: { id: true, name: true } },
-      _count: { select: { dids: true } },
+      _count: { select: { allowedIps: true } },
     },
   });
   const calls = await prisma.callLog.groupBy({
@@ -28,8 +27,7 @@ export async function GET() {
       id: u.id,
       name: u.name,
       email: u.email,
-      switch: u.switch,
-      totalDids: u._count.dids,
+      allowedIps: u._count.allowedIps,
       callsToday: callMap.get(u.id) ?? 0,
       status: u.status,
     })),

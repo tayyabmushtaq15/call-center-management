@@ -31,5 +31,17 @@ export async function register() {
       console.error("lease sweeper failed", e);
     }
   };
+  // Keep the dialer request log bounded (it gets one row per call).
+  const retentionDays = Number(process.env.REQUEST_LOG_RETENTION_DAYS ?? 30);
+  const prune = async () => {
+    try {
+      await prisma.didRequestLog.deleteMany({
+        where: { createdAt: { lt: new Date(Date.now() - retentionDays * 86_400_000) } },
+      });
+    } catch (e) {
+      console.error("request log prune failed", e);
+    }
+  };
   setInterval(() => void sweep(), 30_000).unref();
+  setInterval(() => void prune(), 3_600_000).unref();
 }

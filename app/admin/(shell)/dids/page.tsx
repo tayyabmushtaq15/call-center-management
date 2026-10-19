@@ -6,7 +6,7 @@ export default function DidsPage() {
     <div className="space-y-6">
       <PageHeader
         title="DIDs"
-        description="Add numbers, import in bulk, and see what is in the pool or assigned to call centers."
+        description="Add numbers, import in bulk, and see which numbers are free or on a call right now. Every call center draws from this one pool."
       />
       <DidManager />
     </div>

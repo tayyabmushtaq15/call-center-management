@@ -10,11 +10,9 @@ export async function getDashboardPayload() {
 
   const [
     totalDids,
-    poolDids,
-    assignedDids,
+    freeDids,
     inUseDids,
     activeCenters,
-    activeSwitches,
     callsToday,
     answeredToday,
     durationToday,
@@ -23,11 +21,14 @@ export async function getDashboardPayload() {
     poolByState,
   ] = await Promise.all([
     prisma.did.count(),
-    prisma.did.count({ where: { assignedTo: null } }),
-    prisma.did.count({ where: { assignedTo: { not: null } } }),
-    prisma.did.count({ where: { isInUse: true } }),
+    prisma.did.count({
+      where: {
+        status: "active",
+        OR: [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
+      },
+    }),
+    prisma.did.count({ where: { isInUse: true, leaseExpiresAt: { gt: new Date() } } }),
     prisma.user.count({ where: { status: "active" } }),
-    prisma.switch.count({ where: { status: "active" } }),
     prisma.callLog.count({ where: { startedAt: { gte: start } } }),
     prisma.callLog.count({
       where: { startedAt: { gte: start }, callStatus: "answered" },
@@ -43,7 +44,6 @@ export async function getDashboardPayload() {
       include: {
         user: { select: { name: true } },
         did: { select: { number: true } },
-        switch: { select: { name: true } },
       },
     }),
     prisma.callLog.findMany({
@@ -107,11 +107,9 @@ export async function getDashboardPayload() {
   return {
     stats: {
       totalDids,
-      poolDids,
-      assignedDids,
+      freeDids,
       inUseDids,
       activeCenters,
-      activeSwitches,
       callsToday,
       answerRateToday: callsToday ? answeredToday / callsToday : 0,
       durationToday: durationToday._sum.duration ?? 0,

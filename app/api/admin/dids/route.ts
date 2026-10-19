@@ -33,11 +33,18 @@ export async function GET(req: Request) {
     take: 500,
     include: {
       state: true,
-      user: { select: { id: true, name: true } },
+      callLogs: {
+        where: { callStatus: "in_progress" },
+        orderBy: { startedAt: "desc" },
+        take: 1,
+        select: { user: { select: { id: true, name: true } } },
+      },
     },
   });
 
-  return NextResponse.json({ dids });
+  return NextResponse.json({
+    dids: dids.map(({ callLogs, ...d }) => ({ ...d, user: callLogs[0]?.user ?? null })),
+  });
 }
 
 const createSchema = z.object({

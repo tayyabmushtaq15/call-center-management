@@ -14,7 +14,6 @@ export default function CallLogsPage() {
       startedAt: string;
       user: { name: string };
       did: { number: string };
-      switch: { name: string } | null;
     }[]
   >([]);
 
@@ -54,7 +53,6 @@ export default function CallLogsPage() {
                 <th className="px-3 py-3">State</th>
                 <th className="px-3 py-3">DID</th>
                 <th className="px-3 py-3">Center</th>
-                <th className="px-3 py-3">Switch</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Dur</th>
                 <th className="px-3 py-3">Started</th>
@@ -67,7 +65,6 @@ export default function CallLogsPage() {
                 <td className="px-3 py-2.5 text-slate-200">{l.receiverState}</td>
                 <td className="px-3 py-2.5 font-mono text-slate-200">{l.did.number}</td>
                 <td className="px-3 py-2.5 text-slate-200">{l.user.name}</td>
-                <td className="px-3 py-2.5 text-slate-200">{l.switch?.name ?? "Dialer"}</td>
                 <td className="px-3 py-2.5 text-slate-200">{l.callStatus}</td>
                 <td className="px-3 py-2.5 tabular-nums text-slate-200">
                   {l.duration ?? "—"}

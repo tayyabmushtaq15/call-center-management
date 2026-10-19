@@ -9,7 +9,6 @@ const links: { href: string; label: string }[] = [
   { href: "/admin/states", label: "States" },
   { href: "/admin/dids", label: "DIDs" },
   { href: "/admin/call-centers", label: "Call centers" },
-  { href: "/admin/switches", label: "Switches" },
   { href: "/admin/api-keys", label: "API keys" },
   { href: "/admin/call-logs", label: "Call logs" },
   { href: "/admin/reports", label: "Reports" },

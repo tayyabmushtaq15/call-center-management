@@ -26,7 +26,6 @@ const reportTypes = [
   "summary",
   "by_state",
   "by_call_center",
-  "by_switch",
   "did_usage",
   "pool_health",
 ] as const;
@@ -52,11 +51,6 @@ const typeMeta: Record<
     description: "Per–call center calls, rate, and talk time.",
     filterNote: "Respects date range, call center, and state filters below.",
   },
-  by_switch: {
-    label: "Calls by switch",
-    description: "Traffic and performance per VoIP switch.",
-    filterNote: "Respects date range, call center, and state filters below.",
-  },
   did_usage: {
     label: "DID usage",
     description: "Most and least used numbers and never-used count (live snapshot).",
@@ -64,7 +58,7 @@ const typeMeta: Record<
   },
   pool_health: {
     label: "Pool health",
-    description: "Unassigned vs assigned DIDs by state, with low-pool flags.",
+    description: "Active DIDs vs DIDs on a call right now, by state, with low-pool flags.",
     filterNote: "Live snapshot — compares pool size to your low-pool threshold in settings.",
   },
 };
@@ -84,14 +78,6 @@ type ByCRow = {
   answerRate: number;
   talkSeconds: number;
 };
-type BySRow = {
-  switch: string;
-  calls: number;
-  answerRate: number;
-  talkSeconds: number;
-  callCenters: number;
-};
-
 type DidInRow = {
   id: number;
   number: string;
@@ -106,7 +92,7 @@ type DidUsage = {
   neverUsedCount: number;
 };
 
-type PoolRow = { state: string; pool: number; assigned: number; low: boolean };
+type PoolRow = { state: string; pool: number; inUse: number; low: boolean };
 type PoolHealth = { threshold: number; rows: PoolRow[] };
 
 type CallCenterOpt = { id: number; name: string; email: string };
@@ -216,7 +202,7 @@ export function ReportsClient() {
     <div className="min-w-0 max-w-6xl space-y-8">
       <PageHeader
         title="Reports"
-        description="Run analytics for call volume, geography, call centers, switches, DID usage, and pool health. Exports for CSV are available on Call logs and from your workflow as needed."
+        description="Run analytics for call volume, geography, call centers, DID usage, and pool health. Exports for CSV are available on Call logs and from your workflow as needed."
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -345,8 +331,6 @@ function ReportBody({ type, data }: { type: ReportType; data: unknown }) {
       return <ByStateView data={data as { rows: ByRow[] } } />;
     case "by_call_center":
       return <ByCallCenterView data={data as { rows: ByCRow[] } } />;
-    case "by_switch":
-      return <BySwitchView data={data as { rows: BySRow[] } } />;
     case "did_usage":
       return <DidUsageView data={data as DidUsage} />;
     case "pool_health":
@@ -525,77 +509,6 @@ function ByCallCenterView({ data }: { data: { rows?: ByCRow[] } }) {
   );
 }
 
-function BySwitchView({ data }: { data: { rows?: BySRow[] } }) {
-  const rows = data.rows ?? [];
-  const chart = rows
-    .slice(0, 10)
-    .map((r) => {
-      const name = (r?.switch ?? "") || "?";
-      return { name: name.length > 18 ? name.slice(0, 18) : name, full: name, calls: r?.calls ?? 0 };
-    });
-  return (
-    <div className="space-y-6">
-      {chart.length > 0 ? (
-        <div className={`${cardClass} p-5`}>
-          <h3 className="text-sm font-semibold text-slate-100">Calls by switch</h3>
-          <div className="mt-4" style={{ height: CHART_H }}>
-            <ResponsiveContainer width="100%" height={CHART_H} debounce={32}>
-              <BarChart
-                data={chart}
-                layout="vertical"
-                margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: "#94a3b8" }} />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={100}
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid rgb(51 65 85 / 0.6)",
-                    background: "rgb(15 23 42 / 0.95)",
-                    color: "#e2e8f0",
-                  }}
-                />
-                <Bar dataKey="calls" fill="#2563eb" name="Calls" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      ) : null}
-      <DataTable
-        title="Switches"
-        empty="No call data in this range."
-        columns={[
-          { key: "switch", header: "Switch", cell: (r) => (r as BySRow).switch },
-          { key: "calls", header: "Calls", cell: (r) => (r as BySRow).calls },
-          {
-            key: "answerRate",
-            header: "Answer rate",
-            cell: (r) => pct((r as BySRow).answerRate),
-          },
-          {
-            key: "talk",
-            header: "Talk time",
-            cell: (r) => formatDur((r as BySRow).talkSeconds),
-          },
-          {
-            key: "cc",
-            header: "Call centers",
-            cell: (r) => (r as BySRow).callCenters,
-          },
-        ]}
-        rows={rows}
-        rowKey={(r, i) => `${(r as BySRow).switch}-${i}`}
-      />
-    </div>
-  );
-}
-
 function DidUsageView({ data }: { data: Partial<DidUsage> }) {
   const most = data.most ?? [];
   const least = data.least ?? [];
@@ -645,16 +558,16 @@ function PoolHealthView({ data }: { data: { threshold?: number; rows?: PoolRow[]
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-600/40 bg-slate-800/40 px-5 py-4 text-sm text-slate-300">
-        <strong>Low-pool threshold:</strong> {data.threshold ?? "—"} unassigned DIDs. States below
+        <strong>Low-pool threshold:</strong> {data.threshold ?? "—"} active DIDs per state. States below
         that show a warning.
       </div>
       <DataTable
-        title="Pool vs assigned (all states)"
+        title="Active DIDs vs in use (all states)"
         empty="No data."
         columns={[
           { key: "state", header: "State", cell: (r) => (r as PoolRow).state },
-          { key: "pool", header: "In pool", cell: (r) => (r as PoolRow).pool },
-          { key: "asg", header: "Assigned", cell: (r) => (r as PoolRow).assigned },
+          { key: "pool", header: "Active DIDs", cell: (r) => (r as PoolRow).pool },
+          { key: "asg", header: "In use now", cell: (r) => (r as PoolRow).inUse },
           {
             key: "low",
             header: "Status",
