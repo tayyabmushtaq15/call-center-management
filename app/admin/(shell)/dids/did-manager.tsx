@@ -33,9 +33,18 @@ function mergeStateCounts(
   return out;
 }
 
-export function DidManager() {
+type StateOpt = { id: number; name: string; code: string };
+
+/** On a call = reserved and the reservation has not timed out. */
+const isOnCall = (d: { isInUse: boolean; leaseExpiresAt: string | null }) =>
+  d.isInUse && d.leaseExpiresAt !== null && new Date(d.leaseExpiresAt) > new Date();
+
+export function DidManager({ initialStateId = "", initialFree = false }: { initialStateId?: string; initialFree?: boolean }) {
   const [dids, setDids] = useState<DidRow[]>([]);
   const [q, setQ] = useState("");
+  const [stateId, setStateId] = useState(initialStateId);
+  const [freeOnly, setFreeOnly] = useState(initialFree);
+  const [stateList, setStateList] = useState<StateOpt[]>([]);
   const [single, setSingle] = useState("");
   const [bulk, setBulk] = useState("");
   const [msg, setMsg] = useState("");
@@ -49,10 +58,19 @@ export function DidManager() {
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
+    if (stateId) params.set("stateId", stateId);
+    if (freeOnly) params.set("free", "1");
     const res = await fetch(`/api/admin/dids?${params}`);
     const j = await res.json();
     setDids(j.dids ?? []);
-  }, [q]);
+  }, [q, stateId, freeOnly]);
+
+  useEffect(() => {
+    fetch("/api/admin/states")
+      .then((r) => r.json())
+      .then((j) => setStateList(j.states ?? []))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -170,7 +188,7 @@ export function DidManager() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex max-w-lg flex-1 flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="min-w-0 flex-1">
             <div className={labelClass}>Search</div>
             <input
@@ -180,9 +198,38 @@ export function DidManager() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <PrimaryButton onClick={() => void load()} className="h-[38px] shrink-0 self-stretch sm:self-end">
+          <PrimaryButton onClick={() => void load()} className="shrink-0 self-stretch sm:self-end">
             Search
           </PrimaryButton>
+          <div>
+            <div className={labelClass}>State</div>
+            <select
+              className={`${inputClass} mt-1 sm:w-52`}
+              value={stateId}
+              onChange={(e) => setStateId(e.target.value)}
+              aria-label="Filter by state"
+            >
+              <option value="">All states</option>
+              {stateList.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name} ({st.code})
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            aria-pressed={freeOnly}
+            onClick={() => setFreeOnly((v) => !v)}
+            className={`inline-flex items-center gap-2 self-stretch rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 sm:self-end ${
+              freeOnly
+                ? "border-emerald-500 bg-emerald-500 text-white shadow-sm shadow-emerald-600/30"
+                : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${freeOnly ? "bg-white" : "bg-emerald-500"}`} />
+            Free only
+          </button>
         </div>
         <div className="flex gap-2">
           <SecondaryButton onClick={() => setImportOpen(true)}>Bulk import</SecondaryButton>
@@ -276,7 +323,9 @@ export function DidManager() {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-900/5">
         <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">DID list</h2>
+          <h2 className="text-sm font-semibold text-slate-900">
+            DID list <span className="ml-1 font-normal text-slate-500">({dids.length}{dids.length === 500 ? "+" : ""} shown)</span>
+          </h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-left text-sm">
@@ -296,7 +345,7 @@ export function DidManager() {
                   <td className="px-4 py-3 font-mono text-slate-800">{d.number}</td>
                   <td className="px-4 py-3 text-slate-800">{d.state.code}</td>
                   <td className="px-4 py-3">
-                    {d.isInUse && d.leaseExpiresAt && new Date(d.leaseExpiresAt) > new Date() ? (
+                    {isOnCall(d) ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                         On a call
@@ -308,7 +357,7 @@ export function DidManager() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-700">{d.user?.name ?? "-"}</td>
+                  <td className="px-4 py-3 text-slate-700">{isOnCall(d) ? (d.user?.name ?? "-") : "-"}</td>
                   <td className="px-4 py-3 tabular-nums text-slate-800">{d.totalUses}</td>
                   <td className="px-4 py-3 text-xs text-slate-600">
                     {d.lastUsedAt ? new Date(d.lastUsedAt).toLocaleString() : "-"}

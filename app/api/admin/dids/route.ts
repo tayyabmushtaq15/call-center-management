@@ -13,6 +13,7 @@ export async function GET(req: Request) {
   const q = searchParams.get("q")?.trim();
   const stateId = searchParams.get("stateId");
   const status = searchParams.get("status");
+  const freeOnly = searchParams.get("free") === "1";
 
   const where: Prisma.DidWhereInput = {};
   if (q) {
@@ -20,6 +21,11 @@ export async function GET(req: Request) {
   }
   if (stateId) where.stateId = Number(stateId);
   if (status === "active" || status === "inactive") where.status = status;
+  if (freeOnly) {
+    // Free = active and not on a call (or its reservation timed out)
+    where.status = "active";
+    where.OR = [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }];
+  }
 
   const dids = await prisma.did.findMany({
     where,

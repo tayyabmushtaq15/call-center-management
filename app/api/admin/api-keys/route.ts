@@ -79,3 +79,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 }
+
+/**
+ * DELETE /api/admin/api-keys?keyId=…   deletes one inactive key
+ * DELETE /api/admin/api-keys?inactive=1 deletes every inactive key
+ * Active keys are never deleted here: a key in use must be regenerated or deactivated first.
+ */
+export async function DELETE(req: Request) {
+  const admin = await requireAdminSession();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const q = new URL(req.url).searchParams;
+  try {
+    if (q.get("inactive") === "1") {
+      const { count } = await prisma.apiKey.deleteMany({ where: { status: "inactive" } });
+      return NextResponse.json({ success: true, deleted: count });
+    }
+    const keyId = Number(q.get("keyId"));
+    if (!Number.isInteger(keyId) || keyId <= 0) {
+      return NextResponse.json({ error: "Bad request" }, { status: 400 });
+    }
+    const key = await prisma.apiKey.findUnique({ where: { id: keyId }, select: { status: true } });
+    if (!key) return NextResponse.json({ error: "Key not found" }, { status: 404 });
+    if (key.status === "active") {
+      return NextResponse.json(
+        { error: "This key is active. Regenerate or deactivate it first." },
+        { status: 400 }
+      );
+    }
+    await prisma.apiKey.delete({ where: { id: keyId } });
+    return NextResponse.json({ success: true, deleted: 1 });
+  } catch {
+    return NextResponse.json({ error: "Could not delete" }, { status: 400 });
+  }
+}

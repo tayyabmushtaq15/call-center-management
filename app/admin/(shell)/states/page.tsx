@@ -6,6 +6,7 @@ export default async function StatesPage() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const states = await prisma.state.findMany({ orderBy: { name: "asc" } });
+  const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
   const poolByState = await prisma.did.groupBy({
     by: ["stateId"],
     where: { status: "active" },
@@ -45,9 +46,9 @@ export default async function StatesPage() {
     <div className="space-y-6">
       <PageHeader
         title="States"
-        description="All 52 U.S. regions are pre-loaded. Toggle a state off to stop the dialer API handing out DIDs for it."
+        description="How many DIDs are free in each state right now. Search or filter to find a state fast, open its free DIDs, or turn a state off to stop the dialer API using it."
       />
-      <StatesClient initialRows={rows} />
+      <StatesClient initialRows={rows} lowThreshold={settings?.lowPoolWarningThreshold ?? 5} />
     </div>
   );
 }
