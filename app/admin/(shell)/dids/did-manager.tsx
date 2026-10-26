@@ -12,13 +12,10 @@ type DidRow = {
   number: string;
   areaCode: string;
   status: string;
-  isInUse: boolean;
-  leaseExpiresAt: string | null;
   totalUses: number;
   lastUsedAt: string | null;
   createdAt: string;
   state: { code: string; name: string };
-  user: { id: number; name: string } | null;
 };
 
 function mergeStateCounts(
@@ -215,7 +212,7 @@ export function DidManager() {
             />
           </label>
           {addError ? (
-            <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+            <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {addError}
             </p>
           ) : null}
@@ -251,7 +248,7 @@ export function DidManager() {
           <span className="text-xs text-slate-500">.csv, .tsv, .xls, .xlsx</span>
         </div>
         <textarea
-          className="mt-4 w-full rounded-lg border border-slate-600/60 bg-slate-900/60 px-3 py-2 font-mono text-sm text-slate-100 focus:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="mt-4 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 focus:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           rows={6}
           value={bulk}
           onChange={(e) => setBulk(e.target.value)}
@@ -269,36 +266,34 @@ export function DidManager() {
       </Modal>
 
       {msg ? (
-        <p className="rounded-lg border border-slate-600/50 bg-slate-800/50 px-3 py-2 text-sm text-slate-300">
+        <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
           {msg}
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-600/40 bg-slate-800/50 shadow-lg ring-1 ring-slate-700/30">
-        <div className="border-b border-slate-600/50 bg-slate-800/30 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-100">DID list</h2>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-900/5">
+        <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3">
+          <h2 className="text-sm font-semibold text-slate-900">DID list</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-left text-sm">
-            <thead className="bg-slate-800/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <thead className="bg-emerald-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
               <tr>
                 <th className="px-4 py-3">Number</th>
                 <th className="px-4 py-3">State</th>
-                <th className="px-4 py-3">In use</th>
-                <th className="px-4 py-3">Used by</th>
                 <th className="px-4 py-3">Uses</th>
+                <th className="px-4 py-3">Last used</th>
               </tr>
             </thead>
             <tbody>
               {dids.map((d) => (
-                <tr key={d.id} className="border-t border-slate-700/50">
-                  <td className="px-4 py-3 font-mono text-slate-200">{d.number}</td>
-                  <td className="px-4 py-3 text-slate-200">{d.state.code}</td>
-                  <td className="px-4 py-3 text-slate-200">
-                    {d.isInUse && d.leaseExpiresAt && new Date(d.leaseExpiresAt) > new Date() ? "yes" : "no"}
+                <tr key={d.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
+                  <td className="px-4 py-3 font-mono text-slate-800">{d.number}</td>
+                  <td className="px-4 py-3 text-slate-800">{d.state.code}</td>
+                  <td className="px-4 py-3 tabular-nums text-slate-800">{d.totalUses}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {d.lastUsedAt ? new Date(d.lastUsedAt).toLocaleString() : "-"}
                   </td>
-                  <td className="px-4 py-3 text-slate-200">{d.user?.name ?? "-"}</td>
-                  <td className="px-4 py-3 tabular-nums text-slate-200">{d.totalUses}</td>
                 </tr>
               ))}
             </tbody>

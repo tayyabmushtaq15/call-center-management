@@ -45,7 +45,7 @@ export function Modal({ open, onClose, title, description, children, wide }: Mod
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -55,20 +55,20 @@ export function Modal({ open, onClose, title, description, children, wide }: Mod
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`my-8 w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-2xl border border-slate-600/50 bg-slate-800 shadow-2xl shadow-slate-950/60 ring-1 ring-slate-700/40`}
+        className={`my-8 w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 ring-1 ring-slate-900/5`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-600/50 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-emerald-100 px-5 py-4">
           <div>
-            <h2 id={titleId} className="text-base font-semibold text-slate-100">
+            <h2 id={titleId} className="text-base font-semibold text-slate-900">
               {title}
             </h2>
-            {description ? <p className="mt-1 text-xs leading-relaxed text-slate-400">{description}</p> : null}
+            {description ? <p className="mt-1 text-xs leading-relaxed text-slate-600">{description}</p> : null}
           </div>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="-mr-1 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-700/70 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+            className="-mr-1 rounded-lg p-1.5 text-slate-600 transition hover:bg-emerald-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5"
           >
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M5 5l10 10M15 5L5 15" />

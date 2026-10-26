@@ -16,8 +16,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/v1/did?apikey=…&number=…&callerId=…
- * Called from the Asterisk dialplan via CURL(); the body is used as CALLERID(num).
- * Returns the DID digits, or the caller's own `callerId` if we can't serve the request.
+ * Called from the Asterisk dial plan via CURL(); the body becomes CALLERID(num).
+ *
+ * Returns a DID for the dialed number: one with the same area code if we have it, otherwise any DID in
+ * the same state, rotating through them so the least-used goes first. There is no reservation and no
+ * release step, a DID can be on several calls at once. If we can't serve the request, the dialer's own
+ * `callerId` is returned so the call still goes out.
  */
 export async function GET(req: Request) {
   const startedAt = Date.now();
@@ -30,7 +34,7 @@ export async function GET(req: Request) {
     if (auth.logIt) {
       after(() =>
         logRequest({
-          userId: auth.userId, kind: "did", ip: auth.ip, destination: rawDigits || null,
+          userId: auth.userId, ip: auth.ip, destination: rawDigits || null,
           outcome: "rejected", reason: auth.reason, startedAt,
         })
       );
@@ -43,7 +47,7 @@ export async function GET(req: Request) {
   const fail = (reason: string, status = 200) => {
     after(() =>
       logRequest({
-        userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized ?? (rawDigits || null),
+        userId: auth.userId, ip: auth.ip, destination: normalized ?? (rawDigits || null),
         outcome: "fallback", reason, startedAt,
       })
     );
@@ -58,38 +62,25 @@ export async function GET(req: Request) {
     if (!area) return fail("unknown_area_code");
     if (!area.active) return fail("state_inactive");
 
-    // One statement, so the reservation is atomic and costs a single round trip:
-    // pick a free DID (FOR UPDATE SKIP LOCKED keeps concurrent calls off the same row),
-    // lock it with a lease, close any call left open on it, and open the new call log.
-    // Free = not in use, or its lease ran out (the dialer never reported the end).
-    // Timestamp columns hold naive UTC, so every comparison goes through
-    // (now() AT TIME ZONE 'UTC') and does not depend on the database session timezone.
+    // One statement: pick the least-used DID (same area code first, else same state), count the use, log the call.
+    // Timestamp columns hold naive UTC, so times come from (now() AT TIME ZONE 'UTC'), not the session timezone.
     const rows = await prisma.$queryRaw<Array<{ number: string }>>(Prisma.sql`
       WITH picked AS (
-        SELECT d.id
-        FROM callcenter.dids d
-        WHERE d.state_id = ${area.stateId}
-          AND d.status::text = 'active'
-          AND (d.is_in_use = false
-               OR d.lease_expires_at IS NULL
-               OR d.lease_expires_at < (now() AT TIME ZONE 'UTC'))
-        ORDER BY d.total_uses ASC, d.id ASC
+        SELECT id FROM (
+          (SELECT d.id, 0 AS rnk FROM callcenter.dids d
+            WHERE d.state_id = ${area.stateId} AND d.area_code = ${npa}::text AND d.status::text = 'active'
+            ORDER BY d.total_uses, d.id LIMIT 1)
+          UNION ALL
+          (SELECT d.id, 1 AS rnk FROM callcenter.dids d
+            WHERE d.state_id = ${area.stateId} AND d.status::text = 'active'
+            ORDER BY d.total_uses, d.id LIMIT 1)
+        ) c
+        ORDER BY rnk
         LIMIT 1
-        FOR UPDATE SKIP LOCKED
-      ),
-      closed AS (
-        UPDATE callcenter.call_logs cl
-        SET call_status = 'unknown'::callcenter."CallLogStatus",
-            ended_at = (now() AT TIME ZONE 'UTC')
-        FROM picked
-        WHERE cl.did_id = picked.id AND cl.call_status::text = 'in_progress'
-        RETURNING cl.id
       ),
       upd AS (
         UPDATE callcenter.dids d
-        SET is_in_use = true,
-            lease_expires_at = (now() AT TIME ZONE 'UTC') + make_interval(secs => ${auth.leaseSeconds}::int),
-            total_uses = d.total_uses + 1,
+        SET total_uses = d.total_uses + 1,
             last_used_at = (now() AT TIME ZONE 'UTC')
         FROM picked
         WHERE d.id = picked.id
@@ -99,7 +90,7 @@ export async function GET(req: Request) {
         INSERT INTO callcenter.call_logs
           (user_id, did_id, switch_id, receiver_number, receiver_state, call_status, started_at)
         SELECT ${auth.userId}::int, upd.id, NULL, ${normalized}::text, ${area.code}::text,
-               'in_progress'::callcenter."CallLogStatus", (now() AT TIME ZONE 'UTC')
+               'unknown'::callcenter."CallLogStatus", (now() AT TIME ZONE 'UTC')
         FROM upd
         RETURNING id
       )
@@ -116,7 +107,7 @@ export async function GET(req: Request) {
         })
         .catch(() => undefined);
       await logRequest({
-        userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized,
+        userId: auth.userId, ip: auth.ip, destination: normalized,
         didNumber: picked, outcome: "ok", startedAt,
       });
     });

@@ -67,7 +67,7 @@ export function CreateCallCenterModal() {
             />
           </label>
           {error ? (
-            <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+            <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
             </p>
           ) : null}

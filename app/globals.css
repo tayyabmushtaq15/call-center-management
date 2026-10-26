@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
-/* App default: dark shell (admin is primary experience) */
+/* Light theme: white surfaces on a faint green-white page, green accents */
 :root {
-  --background: #020617;
-  --foreground: #e2e8f0;
-  /* Dots in admin shell — ~slate-400 at higher opacity so they read on slate-950 */
-  --app-grid-dot: rgba(148, 163, 184, 0.28);
+  --background: #f4f9f5;
+  --foreground: #1e293b;
+  /* Dots in the admin shell: a soft green on the page background */
+  --app-grid-dot: rgba(22, 163, 74, 0.14);
 }
 
 @theme inline {
@@ -21,23 +21,21 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Reusable admin main area: visible grid on near-black */
+/* Reusable admin main area: faint green dot grid */
 .admin-dot-grid {
-  background-color: #020617;
+  background-color: #f4f9f5;
   background-image: radial-gradient(var(--app-grid-dot) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
-/* Native date pickers: dark field + light calendar icon (Chromium/Edge/Safari) */
+/* Native date pickers: light field */
 input[type="date"],
 input[type="datetime-local"] {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  opacity: 0.95;
-  /* Crisp white calendar glyph on dark inputs (Chromium/Edge/Safari) */
-  filter: brightness(0) invert(1);
+  opacity: 0.8;
 }

@@ -11,15 +11,9 @@ export async function GET() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
-  // One shared pool: active DIDs per state, and how many are on a call right now.
   const poolByState = await prisma.did.groupBy({
     by: ["stateId"],
     where: { status: "active" },
-    _count: { _all: true },
-  });
-  const assignedByState = await prisma.did.groupBy({
-    by: ["stateId"],
-    where: { status: "active", isInUse: true, leaseExpiresAt: { gt: new Date() } },
     _count: { _all: true },
   });
   const callsByStateToday = await prisma.$queryRaw<
@@ -33,9 +27,6 @@ export async function GET() {
   `;
 
   const poolMap = new Map(poolByState.map((p) => [p.stateId, p._count._all]));
-  const assignedMap = new Map(
-    assignedByState.map((p) => [p.stateId, p._count._all])
-  );
   const callsStateMap = new Map(
     callsByStateToday.map((r) => [r.state_id, Number(r.c)])
   );
@@ -47,7 +38,6 @@ export async function GET() {
       code: s.code,
       status: s.status,
       poolDids: poolMap.get(s.id) ?? 0,
-      assignedDids: assignedMap.get(s.id) ?? 0,
       callsToday: callsStateMap.get(s.id) ?? 0,
     })),
   });

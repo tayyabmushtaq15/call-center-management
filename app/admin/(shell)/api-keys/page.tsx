@@ -44,20 +44,20 @@ export default function ApiKeysPage() {
         description="Keys authenticate your dialer to the get-DID API. Regenerate if a key may be exposed."
       />
       {reveal ? (
-        <div className="rounded-2xl border border-amber-500/25 bg-amber-950/30 p-4 text-sm text-amber-100">
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-50 p-4 text-sm text-amber-800">
           <strong className="font-semibold">New key (copy now)</strong>
-          <code className="mt-2 block break-all rounded-lg border border-slate-600/50 bg-slate-900/60 p-2 font-mono text-xs text-amber-50">
+          <code className="mt-2 block break-all rounded-lg border border-slate-200 bg-white p-2 font-mono text-xs text-amber-900">
             {reveal}
           </code>
         </div>
       ) : null}
-      <div className="overflow-hidden rounded-2xl border border-slate-600/40 bg-slate-800/50 shadow-lg ring-1 ring-slate-700/30">
-        <div className="border-b border-slate-600/50 bg-slate-800/30 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-100">Keys by call center</h2>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-900/5">
+        <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3">
+          <h2 className="text-sm font-semibold text-slate-900">Keys by call center</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-left text-sm">
-            <thead className="bg-slate-800/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <thead className="bg-emerald-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
               <tr>
                 <th className="px-4 py-3">Call center</th>
                 <th className="px-4 py-3">Key</th>
@@ -68,15 +68,15 @@ export default function ApiKeysPage() {
             </thead>
             <tbody>
             {keys.map((k) => (
-              <tr key={k.id} className="border-t border-slate-700/50">
-                <td className="px-4 py-3 font-medium text-slate-200">{k.callCenter}</td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-300">{k.masked}</td>
-                <td className="px-4 py-3 text-slate-200">{k.status}</td>
-                <td className="px-4 py-3 tabular-nums text-slate-200">{k.callsToday}</td>
+              <tr key={k.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
+                <td className="px-4 py-3 font-medium text-slate-800">{k.callCenter}</td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-700">{k.masked}</td>
+                <td className="px-4 py-3 text-slate-800">{k.status}</td>
+                <td className="px-4 py-3 tabular-nums text-slate-800">{k.callsToday}</td>
                 <td className="px-4 py-3">
                   <button
                     type="button"
-                    className="text-sm font-medium text-emerald-400 hover:text-emerald-300 hover:underline"
+                    className="text-sm font-medium text-emerald-700 hover:text-emerald-700 hover:underline"
                       onClick={() => void regenerate(k.userId)}
                     >
                       Regenerate

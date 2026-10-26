@@ -55,7 +55,7 @@ export default function SettingsPage() {
         description="System name, pool alerts, rate limits, and the signed-in super admin account."
       />
       <div className={`space-y-4 p-5 ${cardClass}`}>
-        <h2 className="text-sm font-semibold text-slate-100">System</h2>
+        <h2 className="text-sm font-semibold text-slate-900">System</h2>
         <label className="block">
           <span className={labelClass}>System name</span>
           <input
@@ -84,7 +84,7 @@ export default function SettingsPage() {
         </label>
       </div>
       <div className={`space-y-4 p-5 ${cardClass}`}>
-        <h2 className="text-sm font-semibold text-slate-100">Admin account</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Admin account</h2>
         <label className="block">
           <span className={labelClass}>Name</span>
           <input
@@ -116,8 +116,8 @@ export default function SettingsPage() {
         <p
           className={
             msg === "Saved"
-              ? "text-sm text-emerald-400"
-              : "text-sm text-rose-400"
+              ? "text-sm text-emerald-700"
+              : "text-sm text-rose-600"
           }
         >
           {msg}

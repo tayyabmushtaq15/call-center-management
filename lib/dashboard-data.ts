@@ -10,42 +10,16 @@ export async function getDashboardPayload() {
 
   const [
     totalDids,
-    freeDids,
-    inUseDids,
+    activeDids,
     activeCenters,
     callsToday,
-    answeredToday,
-    durationToday,
-    activeCalls,
     recentActivity,
     poolByState,
   ] = await Promise.all([
     prisma.did.count(),
-    prisma.did.count({
-      where: {
-        status: "active",
-        OR: [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
-      },
-    }),
-    prisma.did.count({ where: { isInUse: true, leaseExpiresAt: { gt: new Date() } } }),
+    prisma.did.count({ where: { status: "active" } }),
     prisma.user.count({ where: { status: "active" } }),
     prisma.callLog.count({ where: { startedAt: { gte: start } } }),
-    prisma.callLog.count({
-      where: { startedAt: { gte: start }, callStatus: "answered" },
-    }),
-    prisma.callLog.aggregate({
-      where: { startedAt: { gte: start } },
-      _sum: { duration: true },
-    }),
-    prisma.callLog.findMany({
-      where: { callStatus: "in_progress" },
-      orderBy: { startedAt: "desc" },
-      take: 50,
-      include: {
-        user: { select: { name: true } },
-        did: { select: { number: true } },
-      },
-    }),
     prisma.callLog.findMany({
       orderBy: { startedAt: "desc" },
       take: 10,
@@ -92,40 +66,20 @@ export async function getDashboardPayload() {
     ORDER BY c DESC
   `;
 
-  const answerTrend = await prisma.$queryRaw<
-    Array<{ day: Date; answered: bigint; total: bigint }>
-  >`
-    SELECT date_trunc('day', started_at) AS day,
-      SUM(CASE WHEN call_status = 'answered' THEN 1 ELSE 0 END)::bigint AS answered,
-      COUNT(*)::bigint AS total
-    FROM callcenter.call_logs
-    WHERE started_at >= ${weekStart}
-    GROUP BY 1
-    ORDER BY 1
-  `;
-
   return {
     stats: {
       totalDids,
-      freeDids,
-      inUseDids,
+      activeDids,
       activeCenters,
       callsToday,
-      answerRateToday: callsToday ? answeredToday / callsToday : 0,
-      durationToday: durationToday._sum.duration ?? 0,
     },
     poolWarnings,
-    activeCalls,
     recentLogs: recentActivity,
     charts: {
       hourly: hourly.map((r) => ({ hour: r.h, calls: Number(r.c) })),
       byStateToday: byStateToday.map((r) => ({
         state: r.code,
         calls: Number(r.c),
-      })),
-      answerTrend: answerTrend.map((r) => ({
-        day: r.day.toISOString().slice(0, 10),
-        rate: Number(r.total) ? Number(r.answered) / Number(r.total) : 0,
       })),
     },
   };

@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { StatusToggle } from "@/components/StatusToggle";
 import { PageHeader, StatTile, cardClass, inputClass, PrimaryButton, SecondaryButton } from "@/components/admin-chrome";
 
 type AllowedIpRow = { id: number; ip: string; label: string | null; status: string };
 type RequestRow = {
   id: number;
-  kind: string;
   ip: string;
   destination: string | null;
   didNumber: string | null;
@@ -22,7 +22,6 @@ export function CallCenterDetail({ id }: { id: number }) {
   const [newIp, setNewIp] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [ipMsg, setIpMsg] = useState("");
-  const [lease, setLease] = useState<number | null>(null);
   const [prefix, setPrefix] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -35,7 +34,6 @@ export function CallCenterDetail({ id }: { id: number }) {
     setData(u);
     setIps(ipRes.ips ?? []);
     setRequests(reqRes.requests ?? []);
-    setLease((prev) => prev ?? u.user?.leaseSeconds ?? 3600);
     setPrefix((prev) => prev ?? u.user?.dialPrefix ?? "");
   }, [id]);
 
@@ -46,7 +44,7 @@ export function CallCenterDetail({ id }: { id: number }) {
   if (!data?.user) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-600 border-t-emerald-500" />
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-500" />
       </div>
     );
   }
@@ -56,7 +54,6 @@ export function CallCenterDetail({ id }: { id: number }) {
     name: string;
     email: string;
     status: string;
-    leaseSeconds: number;
     dialPrefix: string | null;
     apiKeys: { id: number; key: string; status: string }[];
   };
@@ -115,37 +112,36 @@ export function CallCenterDetail({ id }: { id: number }) {
     }
   }
 
-  async function saveLease() {
-    setIpMsg("");
-    const res = await fetch(`/api/admin/call-centers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leaseSeconds: lease }),
-    });
-    setIpMsg(res.ok ? "Lease saved" : "Lease must be 10-14400 seconds");
-  }
-
   return (
     <div className="space-y-8">
       <PageHeader
         title={user.name}
-        description={`${user.email} — status: ${user.status}. Dials any DID in the shared pool through the dialer API.`}
-      />
+        description={`${user.email}. Gets a DID from the shared pool, matched to the dialed number's area code. When inactive, its dialers get their own caller ID back.`}
+      >
+        <StatusToggle
+          status={user.status}
+          confirmOff="Its dialers will get their own caller ID back until you switch it on again."
+          onToggle={async (next) => {
+            const res = await fetch(`/api/admin/call-centers/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: next }),
+            });
+            if (res.ok) await load();
+            return res.ok;
+          }}
+        />
+      </PageHeader>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatTile title="Calls today" value={String(stats.callsToday)} />
-        <StatTile
-          title="Answer rate (today)"
-          value={`${(Number(stats.answerRateToday) * 100).toFixed(1)}%`}
-          accent="violet"
-        />
         <StatTile title="Calls (30 days)" value={String(stats.callsMonth)} />
       </div>
 
       <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">API keys</h2>
-        <ul className="mt-3 space-y-2 font-mono text-xs text-slate-200">
+        <h2 className="text-sm font-semibold text-slate-900">API keys</h2>
+        <ul className="mt-3 space-y-2 font-mono text-xs text-slate-800">
           {user.apiKeys.map((k) => (
-            <li key={k.id} className="rounded-lg border border-slate-600/50 bg-slate-900/40 px-3 py-2">
+            <li key={k.id} className="rounded-lg border border-slate-200 bg-emerald-50/60 px-3 py-2">
               {k.key.slice(0, 12)}… <span className="text-slate-500">({k.status})</span>
             </li>
           ))}
@@ -153,21 +149,21 @@ export function CallCenterDetail({ id }: { id: number }) {
       </div>
 
       <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">Dialer API access</h2>
-        <p className="mt-0.5 text-xs text-slate-400">
+        <h2 className="text-sm font-semibold text-slate-900">Dialer API access</h2>
+        <p className="mt-0.5 text-xs text-slate-600">
           Dial plans call <span className="font-mono">GET /api/v1/did</span> from these server IPs only (single IP or IPv4 CIDR).
           With no active IP listed, every request from this call center is rejected.
         </p>
-        <ul className="mt-3 space-y-2 text-xs text-slate-200">
+        <ul className="mt-3 space-y-2 text-xs text-slate-800">
           {ips.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-600/50 bg-slate-900/40 px-3 py-2">
+            <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-emerald-50/60 px-3 py-2">
               <span className="font-mono">{r.ip}</span>
-              <span className="text-slate-400">{r.label ?? ""}</span>
-              <span className={r.status === "active" ? "text-emerald-400" : "text-slate-500"}>{r.status}</span>
-              <button type="button" className="ml-auto text-slate-300 hover:underline" onClick={() => void toggleIp(r.id, r.status)}>
+              <span className="text-slate-600">{r.label ?? ""}</span>
+              <span className={r.status === "active" ? "text-emerald-700" : "text-slate-500"}>{r.status}</span>
+              <button type="button" className="ml-auto text-slate-700 hover:underline" onClick={() => void toggleIp(r.id, r.status)}>
                 {r.status === "active" ? "Disable" : "Enable"}
               </button>
-              <button type="button" className="text-rose-400 hover:underline" onClick={() => void removeIp(r.id)}>
+              <button type="button" className="text-rose-600 hover:underline" onClick={() => void removeIp(r.id)}>
                 Remove
               </button>
             </li>
@@ -179,26 +175,12 @@ export function CallCenterDetail({ id }: { id: number }) {
           <input className={`${inputClass} w-44`} placeholder="Label (e.g. Dialer 1)" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
           <PrimaryButton onClick={() => void addIp()}>Add IP</PrimaryButton>
         </div>
-        <div className="mt-5 flex flex-wrap items-end gap-2">
-          <label>
-            <div className="text-xs font-medium text-slate-400">DID lease (seconds), the safety net when no release arrives</div>
-            <input
-              type="number"
-              min={10}
-              max={14400}
-              className={`mt-1.5 w-28 ${inputClass}`}
-              value={lease ?? user.leaseSeconds}
-              onChange={(e) => setLease(Number(e.target.value))}
-            />
-          </label>
-          <PrimaryButton onClick={() => void saveLease()}>Save lease</PrimaryButton>
-        </div>
-        {ipMsg ? <p className="mt-2 text-sm text-slate-300">{ipMsg}</p> : null}
+        {ipMsg ? <p className="mt-2 text-sm text-slate-700">{ipMsg}</p> : null}
       </div>
 
       <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">Dial plan for this call center</h2>
-        <p className="mt-0.5 text-xs text-slate-400">
+        <h2 className="text-sm font-semibold text-slate-900">Dial plan for this call center</h2>
+        <p className="mt-0.5 text-xs text-slate-600">
           Optional dial prefix: digits the dialer puts in front of the dialed number (for example 7084). Leave empty for none.
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
@@ -219,14 +201,15 @@ export function CallCenterDetail({ id }: { id: number }) {
           const pattern = saved ? `_${saved}X.` : "_X.";
           const dialed = saved ? `\${EXTEN:${saved.length}}` : "\${EXTEN}";
           const text = [
-            `exten => ${pattern},1,Set(RESPONSECALLERID=\${CURL(${origin}/api/v1/did?apikey=${activeKey}&number=${dialed}&callerId=\${CALLERID(num)})})`,
+            `exten => ${pattern},1,AGI(agi://127.0.0.1:4577/call_log)`,
+            `exten => ${pattern},n,Set(RESPONSECALLERID=\${CURL(${origin}/api/v1/did?apikey=${activeKey}&number=${dialed}&callerId=\${CALLERID(num)})})`,
             `exten => ${pattern},n,Set(CALLERID(num)=\${RESPONSECALLERID})`,
             `exten => ${pattern},n,Dial(SIP/${dialed}@SIPTRUNK,,To)`,
             `exten => ${pattern},n,Hangup()`,
           ].join("\n");
           return (
             <div className="mt-4">
-              <pre className="overflow-x-auto rounded-lg border border-slate-600/50 bg-slate-900/60 p-3 text-xs text-slate-200">{text}</pre>
+              <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">{text}</pre>
               <div className="mt-2 flex items-center gap-3">
                 <SecondaryButton onClick={() => void copyDialplan(text)}>{copied ? "Copied" : "Copy dial plan"}</SecondaryButton>
                 <span className="text-xs text-slate-500">Uses the active API key and this site address.</span>
@@ -237,13 +220,12 @@ export function CallCenterDetail({ id }: { id: number }) {
       </div>
 
       <div className={`${cardClass} p-5`}>
-        <h2 className="text-sm font-semibold text-slate-100">Recent dialer API requests</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Recent dialer API requests</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-xs">
-            <thead className="text-slate-400">
+            <thead className="text-slate-600">
               <tr>
                 <th className="px-2 py-1.5">Time</th>
-                <th className="px-2 py-1.5">Type</th>
                 <th className="px-2 py-1.5">IP</th>
                 <th className="px-2 py-1.5">Dialed</th>
                 <th className="px-2 py-1.5">DID</th>
@@ -251,11 +233,10 @@ export function CallCenterDetail({ id }: { id: number }) {
                 <th className="px-2 py-1.5">ms</th>
               </tr>
             </thead>
-            <tbody className="text-slate-200">
+            <tbody className="text-slate-800">
               {requests.map((r) => (
-                <tr key={r.id} className="border-t border-slate-700/50">
+                <tr key={r.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
                   <td className="px-2 py-1.5 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
-                  <td className="px-2 py-1.5">{r.kind}</td>
                   <td className="px-2 py-1.5 font-mono">{r.ip}</td>
                   <td className="px-2 py-1.5 font-mono">{r.destination ?? "-"}</td>
                   <td className="px-2 py-1.5 font-mono">{r.didNumber ?? "-"}</td>
@@ -264,7 +245,7 @@ export function CallCenterDetail({ id }: { id: number }) {
                 </tr>
               ))}
               {requests.length === 0 ? (
-                <tr><td colSpan={7} className="px-2 py-3 text-slate-500">No requests yet.</td></tr>
+                <tr><td colSpan={6} className="px-2 py-3 text-slate-500">No requests yet.</td></tr>
               ) : null}
             </tbody>
           </table>

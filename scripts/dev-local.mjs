@@ -78,7 +78,7 @@ INSERT INTO allowed_ips (user_id, ip, label)
   ON CONFLICT (user_id, ip) DO NOTHING;
 INSERT INTO dids (number, area_code, state_id)
   SELECT p.ac || lpad(g::text, 7, '5'), p.ac, (SELECT id FROM states WHERE code = p.st)
-  FROM (VALUES ('212','NY',20), ('305','FL',10), ('904','FL',10), ('415','CA',5)) AS p(ac, st, n),
+  FROM (VALUES ('212','NY',20), ('305','FL',10), ('904','FL',10), ('415','CA',5), ('937','OH',6), ('614','OH',4)) AS p(ac, st, n),
        LATERAL generate_series(1, p.n) g
   ON CONFLICT (number) DO NOTHING;
 `;

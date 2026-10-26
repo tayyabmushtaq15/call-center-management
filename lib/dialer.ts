@@ -27,9 +27,9 @@ export function fallbackCallerId(raw: string | null): string {
   return (raw ?? "").replace(/[^\d+]/g, "").slice(0, 20);
 }
 
-/** Digits as the trunk expects them. Set DID_OUTPUT_PREFIX to "1" or "+1" if it wants more than 10 digits. */
+/** Digits as the trunk expects them: 1 + 10 digits (11 digits) by default. Set DID_OUTPUT_PREFIX to "" for 10 digits, or "+1" for E.164. */
 export function formatDid(tenDigits: string): string {
-  return `${process.env.DID_OUTPUT_PREFIX ?? ""}${tenDigits}`;
+  return `${process.env.DID_OUTPUT_PREFIX ?? "1"}${tenDigits}`;
 }
 
 /**
@@ -68,7 +68,7 @@ export async function lookupState(areaCode: string): Promise<AreaEntry | null> {
 }
 
 export type DialerAuth =
-  | { ok: true; ip: string; userId: number; apiKeyId: number; leaseSeconds: number; dialPrefix: string | null }
+  | { ok: true; ip: string; userId: number; apiKeyId: number; dialPrefix: string | null }
   | { ok: false; ip: string; userId: number | null; status: number; reason: string; logIt: boolean };
 
 const FAIL_WINDOW_MS = 60_000;
@@ -99,16 +99,14 @@ export async function authenticateDialer(req: Request, apiKey: string | null): P
       user: {
         select: {
           status: true,
-          leaseSeconds: true,
           dialPrefix: true,
           allowedIps: { where: { status: "active" }, select: { ip: true } },
         },
       },
     },
   });
-  if (!row || row.user.status !== "active") {
-    return reject(ip, null, 401, "invalid_api_key");
-  }
+  if (!row) return reject(ip, null, 401, "invalid_api_key");
+  if (row.user.status !== "active") return reject(ip, row.userId, 403, "call_center_inactive");
   if (!row.user.allowedIps.some((a) => ipMatches(ip, a.ip))) {
     return reject(ip, row.userId, 403, "ip_not_allowed");
   }
@@ -120,14 +118,12 @@ export async function authenticateDialer(req: Request, apiKey: string | null): P
     ip,
     userId: row.userId,
     apiKeyId: row.id,
-    leaseSeconds: row.user.leaseSeconds,
     dialPrefix: row.user.dialPrefix,
   };
 }
 
 export async function logRequest(entry: {
   userId: number | null;
-  kind: "did" | "release";
   ip: string;
   destination?: string | null;
   didNumber?: string | null;
@@ -139,7 +135,7 @@ export async function logRequest(entry: {
     await prisma.didRequestLog.create({
       data: {
         userId: entry.userId,
-        kind: entry.kind,
+        kind: "did",
         ip: entry.ip.slice(0, 64),
         destination: entry.destination ?? null,
         didNumber: entry.didNumber ?? null,

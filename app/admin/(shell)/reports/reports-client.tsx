@@ -58,7 +58,7 @@ const typeMeta: Record<
   },
   pool_health: {
     label: "Pool health",
-    description: "Active DIDs vs DIDs on a call right now, by state, with low-pool flags.",
+    description: "Active DIDs by state, with low-pool flags.",
     filterNote: "Live snapshot — compares pool size to your low-pool threshold in settings.",
   },
 };
@@ -92,7 +92,7 @@ type DidUsage = {
   neverUsedCount: number;
 };
 
-type PoolRow = { state: string; pool: number; inUse: number; low: boolean };
+type PoolRow = { state: string; pool: number; low: boolean };
 type PoolHealth = { threshold: number; rows: PoolRow[] };
 
 type CallCenterOpt = { id: number; name: string; email: string };
@@ -215,12 +215,12 @@ export function ReportsClient() {
               onClick={() => setType(t)}
               className={`rounded-2xl border p-4 text-left transition ${
                 active
-                  ? "border-emerald-500/40 bg-gradient-to-br from-emerald-900/30 to-slate-800/40 shadow-md ring-2 ring-emerald-500/20"
-                  : "border-slate-600/40 bg-slate-800/30 hover:border-slate-500/50"
+                  ? "border-emerald-500/40 bg-gradient-to-br from-emerald-50 to-white shadow-md ring-2 ring-emerald-500/20"
+                  : "border-slate-200 bg-emerald-50/60 hover:border-slate-200"
               }`}
             >
-              <div className="text-sm font-semibold text-slate-100">{typeMeta[t].label}</div>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-400">
+              <div className="text-sm font-semibold text-slate-900">{typeMeta[t].label}</div>
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">
                 {typeMeta[t].description}
               </p>
             </button>
@@ -229,7 +229,7 @@ export function ReportsClient() {
       </div>
 
       <Card>
-        <div className="text-sm text-slate-400">{typeMeta[type].filterNote}</div>
+        <div className="text-sm text-slate-600">{typeMeta[type].filterNote}</div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className={labelClass}>From</div>
@@ -291,7 +291,7 @@ export function ReportsClient() {
           <SecondaryButton onClick={() => setPayload(null)}>Clear</SecondaryButton>
         </div>
         {err ? (
-          <p className="mt-3 text-sm text-rose-400" role="alert">
+          <p className="mt-3 text-sm text-rose-600" role="alert">
             {err}
           </p>
         ) : null}
@@ -299,15 +299,15 @@ export function ReportsClient() {
 
       {!loading && !payload && !err ? (
         <Card>
-          <p className="text-sm text-slate-400">
-            Select a report type, adjust filters, then click <strong className="text-slate-200">Run report</strong>.
+          <p className="text-sm text-slate-600">
+            Select a report type, adjust filters, then click <strong className="text-slate-800">Run report</strong>.
           </p>
         </Card>
       ) : null}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-600 border-t-emerald-500" />
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-500" />
         </div>
       ) : null}
 
@@ -320,7 +320,7 @@ function ReportBody({ type, data }: { type: ReportType; data: unknown }) {
   if (isErrorData(data)) {
     return (
       <Card>
-        <p className="text-sm text-rose-400">{(data as { error: string }).error}</p>
+        <p className="text-sm text-rose-600">{(data as { error: string }).error}</p>
       </Card>
     );
   }
@@ -375,18 +375,18 @@ function StatPill({
 }) {
   const b =
     accent === "emerald"
-      ? "border-emerald-500/25 bg-gradient-to-br from-emerald-900/35 to-slate-900/40"
+      ? "border-emerald-500/25 bg-gradient-to-br from-emerald-50 to-white"
       : accent === "violet"
-        ? "border-violet-500/25 bg-gradient-to-br from-violet-900/35 to-slate-900/40"
+        ? "border-violet-500/25 bg-gradient-to-br from-teal-50 to-white"
         : accent === "sky"
-          ? "border-sky-500/25 bg-gradient-to-br from-sky-900/35 to-slate-900/40"
+          ? "border-sky-500/25 bg-gradient-to-br from-lime-50 to-white"
         : accent === "amber"
-          ? "border-amber-500/25 bg-gradient-to-br from-amber-900/30 to-slate-900/40"
-          : "border-slate-500/30 bg-gradient-to-br from-slate-800/60 to-slate-900/50";
+          ? "border-amber-500/25 bg-gradient-to-br from-amber-50 to-white"
+          : "border-slate-200 bg-gradient-to-br from-emerald-50 to-white";
   return (
-    <div className={`rounded-2xl border p-5 ${b} shadow-md shadow-slate-950/30`}>
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-100">{value}</div>
+    <div className={`rounded-2xl border p-5 ${b} shadow-md shadow-slate-900/10`}>
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</div>
     </div>
   );
 }
@@ -398,19 +398,19 @@ function ByStateView({ data }: { data: { rows?: ByRow[] } }) {
     <div className="space-y-6">
       {chart.length > 0 ? (
         <div className={`${cardClass} p-5`}>
-          <h3 className="text-sm font-semibold text-slate-100">Top states by volume</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Top states by volume</h3>
           <div className="mt-4" style={{ height: CHART_H }}>
             <ResponsiveContainer width="100%" height={CHART_H} debounce={32}>
               <BarChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="state" tick={{ fontSize: 12, fill: "#94a3b8" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#94a3b8" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#d7e6dc" />
+                <XAxis dataKey="state" tick={{ fontSize: 12, fill: "#64748b" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} />
                 <Tooltip
                   contentStyle={{
                     borderRadius: 12,
-                    border: "1px solid rgb(51 65 85 / 0.6)",
-                    background: "rgb(15 23 42 / 0.95)",
-                    color: "#e2e8f0",
+                    border: "1px solid #bbf7d0",
+                    background: "#ffffff",
+                    color: "#1e293b",
                   }}
                   cursor={{ fill: "rgba(16, 185, 129, 0.08)" }}
                 />
@@ -455,7 +455,7 @@ function ByCallCenterView({ data }: { data: { rows?: ByCRow[] } }) {
     <div className="space-y-6">
       {chart.length > 0 ? (
         <div className={`${cardClass} p-5`}>
-          <h3 className="text-sm font-semibold text-slate-100">Calls by call center</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Calls by call center</h3>
           <div className="mt-4" style={{ height: CHART_H }}>
             <ResponsiveContainer width="100%" height={CHART_H} debounce={32}>
               <BarChart
@@ -463,20 +463,20 @@ function ByCallCenterView({ data }: { data: { rows?: ByCRow[] } }) {
                 layout="vertical"
                 margin={{ top: 8, right: 12, left: 8, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: "#94a3b8" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#d7e6dc" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fill: "#64748b" }} />
                 <YAxis
                   dataKey="name"
                   type="category"
                   width={100}
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
+                  tick={{ fontSize: 11, fill: "#64748b" }}
                 />
                 <Tooltip
                   contentStyle={{
                     borderRadius: 12,
-                    border: "1px solid rgb(51 65 85 / 0.6)",
-                    background: "rgb(15 23 42 / 0.95)",
-                    color: "#e2e8f0",
+                    border: "1px solid #bbf7d0",
+                    background: "#ffffff",
+                    color: "#1e293b",
                   }}
                 />
                 <Bar dataKey="calls" fill="#059669" name="Calls" radius={[0, 4, 4, 0]} />
@@ -520,7 +520,7 @@ function DidUsageView({ data }: { data: Partial<DidUsage> }) {
           value={data.neverUsedCount ?? 0}
           accent="amber"
         />
-        <div className="sm:col-span-2 flex items-center rounded-2xl border border-amber-500/20 bg-amber-950/30 px-5 py-3 text-sm text-amber-100/90">
+        <div className="sm:col-span-2 flex items-center rounded-2xl border border-amber-500/20 bg-amber-50 px-5 py-3 text-sm text-amber-800">
           <span>
             <strong>Tip:</strong> Compare “most” vs “least” to balance load. Never-used numbers may be
             new or in quiet regions.
@@ -557,27 +557,26 @@ function PoolHealthView({ data }: { data: { threshold?: number; rows?: PoolRow[]
   const rows = data.rows ?? [];
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-600/40 bg-slate-800/40 px-5 py-4 text-sm text-slate-300">
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-700">
         <strong>Low-pool threshold:</strong> {data.threshold ?? "—"} active DIDs per state. States below
         that show a warning.
       </div>
       <DataTable
-        title="Active DIDs vs in use (all states)"
+        title="Active DIDs by state"
         empty="No data."
         columns={[
           { key: "state", header: "State", cell: (r) => (r as PoolRow).state },
           { key: "pool", header: "Active DIDs", cell: (r) => (r as PoolRow).pool },
-          { key: "asg", header: "In use now", cell: (r) => (r as PoolRow).inUse },
           {
             key: "low",
             header: "Status",
             cell: (r) =>
               (r as PoolRow).low ? (
-                <span className="inline-flex items-center rounded-full border border-rose-500/25 bg-rose-950/50 px-2.5 py-0.5 text-xs font-medium text-rose-200">
+                <span className="inline-flex items-center rounded-full border border-rose-500/25 bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700">
                   Low pool
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-full border border-emerald-500/25 bg-emerald-950/40 px-2.5 py-0.5 text-xs font-medium text-emerald-200">
+                <span className="inline-flex items-center rounded-full border border-emerald-500/25 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                   OK
                 </span>
               ),
@@ -615,14 +614,14 @@ function DataTable<T>({
   return (
     <div className={`overflow-hidden ${cardClass}`}>
       <div className={`${cardHeaderClass} px-5 py-3`}>
-        <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       </div>
       {rows.length === 0 ? (
         <p className="p-6 text-sm text-slate-500">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-800/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <thead className="bg-emerald-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
               <tr>
                 {columns.map((c) => (
                   <th key={c.key} className="px-4 py-3">
@@ -639,12 +638,12 @@ function DataTable<T>({
                     key={rowKey(r, i)}
                     className={
                       hi
-                        ? "border-t border-rose-500/20 bg-rose-950/25"
-                        : "border-t border-slate-700/50"
+                        ? "border-t border-rose-500/20 bg-rose-50"
+                        : "border-t border-slate-200"
                     }
                   >
                     {columns.map((c) => (
-                      <td key={c.key} className="px-4 py-3 text-slate-200">
+                      <td key={c.key} className="px-4 py-3 text-slate-800">
                         {c.cell(r) as ReactNode}
                       </td>
                     ))}

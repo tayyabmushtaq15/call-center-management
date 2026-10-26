@@ -162,7 +162,7 @@ async function main() {
     where: { id: 1 },
     create: {
       id: 1,
-      systemName: "Local Presence Dialing",
+      systemName: "SYMBO DID Portal",
       lowPoolWarningThreshold: 5,
       apiRateLimitPerMinute: 6000,
     },

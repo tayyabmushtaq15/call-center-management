@@ -13,8 +13,6 @@ export async function GET(req: Request) {
   const q = searchParams.get("q")?.trim();
   const stateId = searchParams.get("stateId");
   const status = searchParams.get("status");
-  const pool = searchParams.get("pool");
-  const inUse = searchParams.get("inUse");
 
   const where: Prisma.DidWhereInput = {};
   if (q) {
@@ -22,29 +20,15 @@ export async function GET(req: Request) {
   }
   if (stateId) where.stateId = Number(stateId);
   if (status === "active" || status === "inactive") where.status = status;
-  if (pool === "1") where.assignedTo = null;
-  if (pool === "0") where.assignedTo = { not: null };
-  if (inUse === "1") where.isInUse = true;
-  if (inUse === "0") where.isInUse = false;
 
   const dids = await prisma.did.findMany({
     where,
     orderBy: { id: "desc" },
     take: 500,
-    include: {
-      state: true,
-      callLogs: {
-        where: { callStatus: "in_progress" },
-        orderBy: { startedAt: "desc" },
-        take: 1,
-        select: { user: { select: { id: true, name: true } } },
-      },
-    },
+    include: { state: true },
   });
 
-  return NextResponse.json({
-    dids: dids.map(({ callLogs, ...d }) => ({ ...d, user: callLogs[0]?.user ?? null })),
-  });
+  return NextResponse.json({ dids });
 }
 
 const createSchema = z.object({
@@ -109,7 +93,7 @@ export async function PATCH(req: Request) {
       const keep = new Set(withHistory.map((l) => l.didId));
       const deletable = body.ids.filter((id) => !keep.has(id));
       const { count } = await prisma.did.deleteMany({
-        where: { id: { in: deletable }, isInUse: false },
+        where: { id: { in: deletable } },
       });
       return NextResponse.json({
         success: true,
@@ -124,7 +108,7 @@ export async function PATCH(req: Request) {
       });
     } else {
       await prisma.did.updateMany({
-        where: { id: { in: body.ids }, isInUse: false },
+        where: { id: { in: body.ids } },
         data: { status: "inactive" },
       });
     }

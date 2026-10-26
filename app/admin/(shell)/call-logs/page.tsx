@@ -35,19 +35,19 @@ export default function CallLogsPage() {
         children={
           <a
             href="/api/admin/call-logs/export"
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-600/70 bg-slate-800/80 px-4 text-sm font-medium text-slate-200 shadow-sm transition hover:bg-slate-700/80"
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-emerald-50"
           >
             Export CSV
           </a>
         }
       />
-      <div className="overflow-hidden rounded-2xl border border-slate-600/40 bg-slate-800/50 shadow-lg ring-1 ring-slate-700/30">
-        <div className="border-b border-slate-600/50 bg-slate-800/30 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-100">Recent calls</h2>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg ring-1 ring-slate-900/5">
+        <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3">
+          <h2 className="text-sm font-semibold text-slate-900">Recent calls</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="bg-slate-800/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <thead className="bg-emerald-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
               <tr>
                 <th className="px-3 py-3">Receiver</th>
                 <th className="px-3 py-3">State</th>
@@ -60,13 +60,13 @@ export default function CallLogsPage() {
             </thead>
             <tbody>
             {logs.map((l) => (
-              <tr key={l.id} className="border-t border-slate-700/50">
-                <td className="px-3 py-2.5 font-mono text-slate-200">{l.receiverNumber}</td>
-                <td className="px-3 py-2.5 text-slate-200">{l.receiverState}</td>
-                <td className="px-3 py-2.5 font-mono text-slate-200">{l.did.number}</td>
-                <td className="px-3 py-2.5 text-slate-200">{l.user.name}</td>
-                <td className="px-3 py-2.5 text-slate-200">{l.callStatus}</td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-200">
+              <tr key={l.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
+                <td className="px-3 py-2.5 font-mono text-slate-800">{l.receiverNumber}</td>
+                <td className="px-3 py-2.5 text-slate-800">{l.receiverState}</td>
+                <td className="px-3 py-2.5 font-mono text-slate-800">{l.did.number}</td>
+                <td className="px-3 py-2.5 text-slate-800">{l.user.name}</td>
+                <td className="px-3 py-2.5 text-slate-800">{l.callStatus}</td>
+                <td className="px-3 py-2.5 tabular-nums text-slate-800">
                   {l.duration ?? "—"}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-500">

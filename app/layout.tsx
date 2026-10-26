@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Local Presence Dialing",
-  description: "Call center local presence DID management",
+  title: "SYMBO DID Portal",
+  description: "SYMBO DID Portal: manage DIDs and call centers",
 };
 
 export default function RootLayout({
@@ -30,7 +30,7 @@ export default function RootLayout({
     >
       {/* suppressHydrationWarning: extensions (e.g. Grammarly) inject attributes on <body> */}
       <body
-        className="min-h-full flex flex-col font-sans bg-slate-950 text-slate-200 antialiased"
+        className="min-h-full flex flex-col font-sans bg-[#f4f9f5] text-slate-800 antialiased"
         suppressHydrationWarning
       >
         {children}

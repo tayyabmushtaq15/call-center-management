@@ -20,7 +20,6 @@ export async function GET(
       name: true,
       email: true,
       status: true,
-      leaseSeconds: true,
       dialPrefix: true,
       createdAt: true,
       apiKeys: { select: { id: true, key: true, status: true, lastUsedAt: true } },
@@ -65,7 +64,6 @@ const patchSchema = z.object({
   email: z.string().email().optional(),
   password: z.string().min(8).optional(),
   status: z.enum(["active", "inactive"]).optional(),
-  leaseSeconds: z.number().int().min(10).max(14400).optional(),
   dialPrefix: z.string().regex(/^\d{0,10}$/).nullable().optional(),
 });
 
@@ -84,7 +82,6 @@ export async function PATCH(
     if (rest.name !== undefined) data.name = rest.name;
     if (rest.email !== undefined) data.email = rest.email;
     if (rest.status !== undefined) data.status = rest.status;
-    if (rest.leaseSeconds !== undefined) data.leaseSeconds = rest.leaseSeconds;
     if (rest.dialPrefix !== undefined) data.dialPrefix = rest.dialPrefix === "" ? null : rest.dialPrefix;
     if (password) data.password = await bcrypt.hash(password, 12);
     await prisma.user.update({
