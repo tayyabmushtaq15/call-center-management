@@ -58,7 +58,7 @@ const typeMeta: Record<
   },
   pool_health: {
     label: "Pool health",
-    description: "Active DIDs by state, with low-pool flags.",
+    description: "Active DIDs by state and how many are on a call now, with low-pool flags.",
     filterNote: "Live snapshot — compares pool size to your low-pool threshold in settings.",
   },
 };
@@ -92,7 +92,7 @@ type DidUsage = {
   neverUsedCount: number;
 };
 
-type PoolRow = { state: string; pool: number; low: boolean };
+type PoolRow = { state: string; pool: number; inUse: number; low: boolean };
 type PoolHealth = { threshold: number; rows: PoolRow[] };
 
 type CallCenterOpt = { id: number; name: string; email: string };
@@ -567,6 +567,7 @@ function PoolHealthView({ data }: { data: { threshold?: number; rows?: PoolRow[]
         columns={[
           { key: "state", header: "State", cell: (r) => (r as PoolRow).state },
           { key: "pool", header: "Active DIDs", cell: (r) => (r as PoolRow).pool },
+          { key: "inuse", header: "On a call now", cell: (r) => (r as PoolRow).inUse },
           {
             key: "low",
             header: "Status",

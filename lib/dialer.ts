@@ -45,6 +45,16 @@ export function resolveDestination(raw: string | null, dialPrefix: string | null
   return null;
 }
 
+/** How a call ended, from Asterisk's DIALSTATUS. Only informational: the DID is freed whatever the status. */
+export function callStatusFromDialStatus(raw: string | null): "answered" | "not_answered" | "unknown" {
+  const s = (raw ?? "").trim().toUpperCase();
+  if (s === "ANSWER" || s === "ANSWERED") return "answered";
+  if (["BUSY", "NOANSWER", "CANCEL", "CONGESTION", "CHANUNAVAIL", "DONTCALL", "TORTURE", "INVALIDARGS", "NOT_ANSWERED"].includes(s)) {
+    return "not_answered";
+  }
+  return "unknown";
+}
+
 export function normalizeDidParam(raw: string | null): string | null {
   return raw ? normalizeUsPhone(raw) : null;
 }
@@ -68,7 +78,7 @@ export async function lookupState(areaCode: string): Promise<AreaEntry | null> {
 }
 
 export type DialerAuth =
-  | { ok: true; ip: string; userId: number; apiKeyId: number; dialPrefix: string | null }
+  | { ok: true; ip: string; userId: number; apiKeyId: number; leaseSeconds: number; dialPrefix: string | null }
   | { ok: false; ip: string; userId: number | null; status: number; reason: string; logIt: boolean };
 
 const FAIL_WINDOW_MS = 60_000;
@@ -100,6 +110,7 @@ export async function authenticateDialer(req: Request, apiKey: string | null): P
         select: {
           status: true,
           dialPrefix: true,
+          leaseSeconds: true,
           allowedIps: { where: { status: "active" }, select: { ip: true } },
         },
       },
@@ -119,11 +130,13 @@ export async function authenticateDialer(req: Request, apiKey: string | null): P
     userId: row.userId,
     apiKeyId: row.id,
     dialPrefix: row.user.dialPrefix,
+    leaseSeconds: row.user.leaseSeconds,
   };
 }
 
 export async function logRequest(entry: {
   userId: number | null;
+  kind?: "did" | "release";
   ip: string;
   destination?: string | null;
   didNumber?: string | null;
@@ -135,7 +148,7 @@ export async function logRequest(entry: {
     await prisma.didRequestLog.create({
       data: {
         userId: entry.userId,
-        kind: "did",
+        kind: entry.kind ?? "did",
         ip: entry.ip.slice(0, 64),
         destination: entry.destination ?? null,
         didNumber: entry.didNumber ?? null,

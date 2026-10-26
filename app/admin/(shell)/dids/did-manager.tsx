@@ -12,6 +12,9 @@ type DidRow = {
   number: string;
   areaCode: string;
   status: string;
+  isInUse: boolean;
+  leaseExpiresAt: string | null;
+  user: { id: number; name: string } | null;
   totalUses: number;
   lastUsedAt: string | null;
   createdAt: string;
@@ -281,6 +284,8 @@ export function DidManager() {
               <tr>
                 <th className="px-4 py-3">Number</th>
                 <th className="px-4 py-3">State</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Used by</th>
                 <th className="px-4 py-3">Uses</th>
                 <th className="px-4 py-3">Last used</th>
               </tr>
@@ -290,6 +295,20 @@ export function DidManager() {
                 <tr key={d.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
                   <td className="px-4 py-3 font-mono text-slate-800">{d.number}</td>
                   <td className="px-4 py-3 text-slate-800">{d.state.code}</td>
+                  <td className="px-4 py-3">
+                    {d.isInUse && d.leaseExpiresAt && new Date(d.leaseExpiresAt) > new Date() ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        On a call
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Free
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{d.user?.name ?? "-"}</td>
                   <td className="px-4 py-3 tabular-nums text-slate-800">{d.totalUses}</td>
                   <td className="px-4 py-3 text-xs text-slate-600">
                     {d.lastUsedAt ? new Date(d.lastUsedAt).toLocaleString() : "-"}

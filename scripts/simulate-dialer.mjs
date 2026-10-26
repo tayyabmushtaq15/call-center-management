@@ -1,8 +1,9 @@
-// Pretends to be a dialer: for each call it asks the portal for a DID, the way the Asterisk
-// dial plan does, and checks the answer. Prints what happened.
+// Pretends to be a dialer: for each call it asks the portal for a DID, "talks" for a random time, then
+// releases the DID the way the dial plan's hangup line does, with a random end status (answered, busy,
+// no answer, ...). It checks that no DID is ever on two calls at once.
 //
 //   npm run simulate
-//   npm run simulate -- --calls 200 --concurrency 40
+//   npm run simulate -- --calls 200 --concurrency 40 --hold 800
 //   npm run simulate -- --base https://did-portal.vercel.app --key lpd_... --prefix 7084
 //
 // Options (all optional):
@@ -12,6 +13,8 @@
 //   --codes        area codes to dial, comma list    (default 212,305,904,415,937)
 //   --calls        total calls                       (default 60)
 //   --concurrency  calls in flight at once           (default 15)
+//   --hold         max call length in ms             (default 400)
+//   --no-release   never send the release (the DID then stays reserved until the safety timeout)
 //   --ip           send this as X-Real-IP (only for a server behind a proxy you control)
 
 const args = process.argv.slice(2);
@@ -25,12 +28,15 @@ const prefix = opt("prefix", "7084");
 const codes = opt("codes", "212,305,904,415,937").split(",").map((c) => c.trim()).filter(Boolean);
 const calls = Number(opt("calls", 60));
 const concurrency = Number(opt("concurrency", 15));
+const hold = Number(opt("hold", 400));
+const noRelease = args.includes("--no-release");
 const ip = opt("ip", "");
 
 const headers = ip ? { "x-real-ip": ip } : {};
-const stats = { handedOut: 0, fallback: 0, sameAreaCode: 0, badFormat: 0, errors: 0 };
+const STATUSES = ["ANSWER", "ANSWER", "BUSY", "NOANSWER", "CANCEL", "CONGESTION", "CHANUNAVAIL"];
+const held = new Set(); // DIDs on a call right now
+const stats = { handedOut: 0, fallback: 0, sameAreaCode: 0, badFormat: 0, doubleBooked: 0, released: 0, errors: 0 };
 const latencies = [];
-const perDid = new Map();
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const randDigits = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
@@ -57,7 +63,22 @@ async function oneCall(n) {
   stats.handedOut++;
   if (!/^1\d{10}$/.test(body)) stats.badFormat++;
   if (body.slice(1, 4) === areaCode) stats.sameAreaCode++;
-  perDid.set(body, (perDid.get(body) ?? 0) + 1);
+  if (held.has(body)) stats.doubleBooked++;
+  held.add(body);
+  await new Promise((r) => setTimeout(r, Math.random() * hold));
+  held.delete(body);
+  if (noRelease) return;
+  try {
+    const status = pick(STATUSES);
+    const rel = await fetch(
+      `${base}/api/v1/did/release?apikey=${encodeURIComponent(key)}&did=${body}&status=${status}&duration=${status === "ANSWER" ? Math.round(hold / 1000) : 0}`,
+      { headers }
+    );
+    if (rel.ok) stats.released++;
+    else stats.errors++;
+  } catch {
+    stats.errors++;
+  }
 }
 
 let next = 0;
@@ -70,16 +91,16 @@ await Promise.all(
 const secs = (Date.now() - t0) / 1000;
 latencies.sort((a, b) => a - b);
 const p = (q) => latencies[Math.floor(q * (latencies.length - 1))] ?? 0;
-const uses = [...perDid.values()];
 
 console.log(`
 Simulated ${calls} calls, ${concurrency} at a time, against ${base}  (${secs.toFixed(1)}s)
   DID returned:             ${stats.handedOut}
-  Same area code as dialed: ${stats.sameAreaCode}   (the rest got a DID from the same state)
+  Same area code as dialed: ${stats.sameAreaCode}   (the rest got a free DID from the same state)
+  Released at hangup:       ${stats.released}${noRelease ? "   (release disabled)" : ""}
+  DOUBLE-BOOKED DIDs:       ${stats.doubleBooked}   <- a DID on two calls at once; must be 0
   Wrong format:             ${stats.badFormat}   <- every DID should be 1 + 10 digits; must be 0
-  Fallback (own caller ID): ${stats.fallback}   <- unknown area code, wrong key/IP, no DID in that state
+  Fallback (own caller ID): ${stats.fallback}   <- no free DID for that state/area, wrong key/IP, unknown area code
   Errors:                   ${stats.errors}
   Latency:                  p50 ${p(0.5)} ms, p95 ${p(0.95)} ms, max ${latencies.at(-1) ?? 0} ms
-  Distinct DIDs used:       ${perDid.size}  (most used ${uses.length ? Math.max(...uses) : 0}x, least ${uses.length ? Math.min(...uses) : 0}x)
 `);
-process.exit(stats.badFormat > 0 || stats.errors > 0 ? 1 : 0);
+process.exit(stats.doubleBooked > 0 || stats.badFormat > 0 || stats.errors > 0 ? 1 : 0);

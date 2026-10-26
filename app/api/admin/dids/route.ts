@@ -25,10 +25,20 @@ export async function GET(req: Request) {
     where,
     orderBy: { id: "desc" },
     take: 500,
-    include: { state: true },
+    include: {
+      state: true,
+      callLogs: {
+        where: { callStatus: "in_progress" },
+        orderBy: { startedAt: "desc" },
+        take: 1,
+        select: { user: { select: { id: true, name: true } } },
+      },
+    },
   });
 
-  return NextResponse.json({ dids });
+  return NextResponse.json({
+    dids: dids.map(({ callLogs, ...d }) => ({ ...d, user: callLogs[0]?.user ?? null })),
+  });
 }
 
 const createSchema = z.object({
@@ -93,7 +103,7 @@ export async function PATCH(req: Request) {
       const keep = new Set(withHistory.map((l) => l.didId));
       const deletable = body.ids.filter((id) => !keep.has(id));
       const { count } = await prisma.did.deleteMany({
-        where: { id: { in: deletable } },
+        where: { id: { in: deletable }, OR: [{ isInUse: false }, { leaseExpiresAt: { lt: new Date() } }] },
       });
       return NextResponse.json({
         success: true,

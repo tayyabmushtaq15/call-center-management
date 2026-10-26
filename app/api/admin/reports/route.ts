@@ -141,12 +141,19 @@ export async function GET(req: Request) {
         where: { status: "active" },
         _count: { _all: true },
       });
+      const busy = await prisma.did.groupBy({
+        by: ["stateId"],
+        where: { status: "active", isInUse: true, leaseExpiresAt: { gt: new Date() } },
+        _count: { _all: true },
+      });
       const pm = new Map(pool.map((p) => [p.stateId, p._count._all]));
+      const am = new Map(busy.map((a) => [a.stateId, a._count._all]));
       return NextResponse.json({
         threshold,
         rows: states.map((s) => ({
           state: s.code,
           pool: pm.get(s.id) ?? 0,
+          inUse: am.get(s.id) ?? 0,
           low: (pm.get(s.id) ?? 0) < threshold,
         })),
       });

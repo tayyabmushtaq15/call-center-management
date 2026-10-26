@@ -1,7 +1,7 @@
 import { getDashboardPayload } from "@/lib/dashboard-data";
 import { DashboardCharts } from "@/components/DashboardCharts";
 import { PageHeader, StatTile, cardClass, cardHeaderClass } from "@/components/admin-chrome";
-import { IconBuilding, IconChart, IconPhone, IconPulse } from "@/components/icons";
+import { IconBuilding, IconChart, IconGrid, IconPhone, IconPulse } from "@/components/icons";
 
 export default async function DashboardPage() {
   const data = await getDashboardPayload();
@@ -11,11 +11,12 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <PageHeader
         title="Dashboard"
-        description="DID pool size and the calls served by the dialer API."
+        description="DID pool, which numbers are free or on a call, and the calls served by the dialer API."
       />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile title="Total DIDs" value={stats.totalDids} accent="default" icon={<IconPhone />} />
-        <StatTile title="Active DIDs" value={stats.activeDids} accent="violet" icon={<IconPulse />} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <StatTile title="Total DIDs" value={stats.totalDids} accent="default" icon={<IconGrid />} />
+        <StatTile title="Free now" value={Math.max(0, stats.activeDids - stats.inUseDids)} accent="violet" icon={<IconPulse />} hint={`${stats.activeDids} active DIDs`} />
+        <StatTile title="On a call now" value={stats.inUseDids} accent="amber" icon={<IconPhone />} />
         <StatTile title="Active call centers" value={stats.activeCenters} accent="sky" icon={<IconBuilding />} />
         <StatTile title="Calls today" value={stats.callsToday} accent="default" icon={<IconChart />} />
       </div>
@@ -41,6 +42,43 @@ export default async function DashboardPage() {
           </div>
         </div>
       ) : null}
+
+      <div className={`${cardClass} overflow-hidden`}>
+        <div className={cardHeaderClass}>
+          <h2 className="text-sm font-semibold text-slate-900">Calls in progress</h2>
+          <p className="mt-0.5 text-xs text-slate-500">DIDs reserved for a live call. Each is freed when its call ends.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-emerald-50/70 text-xs font-semibold uppercase tracking-wider text-emerald-900/70">
+              <tr>
+                <th className="px-4 py-3">DID</th>
+                <th className="px-4 py-3">Dialed</th>
+                <th className="px-4 py-3">Call center</th>
+                <th className="px-4 py-3">Since</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.activeCalls.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                    No calls in progress
+                  </td>
+                </tr>
+              ) : (
+                data.activeCalls.map((c) => (
+                  <tr key={c.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
+                    <td className="px-4 py-3 font-mono text-slate-800">{c.did.number}</td>
+                    <td className="px-4 py-3 font-mono text-slate-800">{c.receiverNumber}</td>
+                    <td className="px-4 py-3 text-slate-800">{c.user.name}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{c.startedAt.toLocaleString()}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <DashboardCharts
         hourly={data.charts.hourly}

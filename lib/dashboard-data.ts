@@ -11,15 +11,27 @@ export async function getDashboardPayload() {
   const [
     totalDids,
     activeDids,
+    inUseDids,
     activeCenters,
     callsToday,
+    activeCalls,
     recentActivity,
     poolByState,
   ] = await Promise.all([
     prisma.did.count(),
     prisma.did.count({ where: { status: "active" } }),
+    prisma.did.count({ where: { isInUse: true, leaseExpiresAt: { gt: new Date() } } }),
     prisma.user.count({ where: { status: "active" } }),
     prisma.callLog.count({ where: { startedAt: { gte: start } } }),
+    prisma.callLog.findMany({
+      where: { callStatus: "in_progress" },
+      orderBy: { startedAt: "desc" },
+      take: 50,
+      include: {
+        user: { select: { name: true } },
+        did: { select: { number: true } },
+      },
+    }),
     prisma.callLog.findMany({
       orderBy: { startedAt: "desc" },
       take: 10,
@@ -70,9 +82,11 @@ export async function getDashboardPayload() {
     stats: {
       totalDids,
       activeDids,
+      inUseDids,
       activeCenters,
       callsToday,
     },
+    activeCalls,
     poolWarnings,
     recentLogs: recentActivity,
     charts: {

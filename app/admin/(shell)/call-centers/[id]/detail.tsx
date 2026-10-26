@@ -23,7 +23,8 @@ export function CallCenterDetail({ id }: { id: number }) {
   const [newLabel, setNewLabel] = useState("");
   const [ipMsg, setIpMsg] = useState("");
   const [prefix, setPrefix] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [lease, setLease] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     const [u, ipRes, reqRes] = await Promise.all([
@@ -35,6 +36,7 @@ export function CallCenterDetail({ id }: { id: number }) {
     setIps(ipRes.ips ?? []);
     setRequests(reqRes.requests ?? []);
     setPrefix((prev) => prev ?? u.user?.dialPrefix ?? "");
+    setLease((prev) => prev ?? u.user?.leaseSeconds ?? 3600);
   }, [id]);
 
   useEffect(() => {
@@ -55,6 +57,7 @@ export function CallCenterDetail({ id }: { id: number }) {
     email: string;
     status: string;
     dialPrefix: string | null;
+    leaseSeconds: number;
     apiKeys: { id: number; key: string; status: string }[];
   };
   const stats = data.stats as Record<string, number>;
@@ -102,11 +105,21 @@ export function CallCenterDetail({ id }: { id: number }) {
     if (res.ok) await load();
   }
 
-  async function copyDialplan(text: string) {
+  async function saveLease() {
+    setIpMsg("");
+    const res = await fetch(`/api/admin/call-centers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leaseSeconds: lease }),
+    });
+    setIpMsg(res.ok ? "Safety timeout saved" : "Enter between 10 and 86400 seconds");
+  }
+
+  async function copyDialplan(text: string, which: string) {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopied(which);
+      setTimeout(() => setCopied(""), 2000);
     } catch {
       setIpMsg("Copy failed. Select the text and copy it manually.");
     }
@@ -116,7 +129,7 @@ export function CallCenterDetail({ id }: { id: number }) {
     <div className="space-y-8">
       <PageHeader
         title={user.name}
-        description={`${user.email}. Gets a DID from the shared pool, matched to the dialed number's area code. When inactive, its dialers get their own caller ID back.`}
+        description={`${user.email}. Gets a free DID from the shared pool, matched to the dialed number's area code. When inactive, its dialers get their own caller ID back.`}
       >
         <StatusToggle
           status={user.status}
@@ -175,6 +188,23 @@ export function CallCenterDetail({ id }: { id: number }) {
           <input className={`${inputClass} w-44`} placeholder="Label (e.g. Dialer 1)" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
           <PrimaryButton onClick={() => void addIp()}>Add IP</PrimaryButton>
         </div>
+        <div className="mt-5 flex flex-wrap items-end gap-2">
+          <label>
+            <div className="text-xs font-medium text-slate-600">
+              Safety timeout (seconds). A DID is reserved for each call and freed when the call ends. If the end is never reported,
+              it is freed after this long, so set it longer than your longest call.
+            </div>
+            <input
+              type="number"
+              min={10}
+              max={86400}
+              className={`mt-1.5 w-32 ${inputClass}`}
+              value={lease ?? user.leaseSeconds}
+              onChange={(e) => setLease(Number(e.target.value))}
+            />
+          </label>
+          <PrimaryButton onClick={() => void saveLease()}>Save timeout</PrimaryButton>
+        </div>
         {ipMsg ? <p className="mt-2 text-sm text-slate-700">{ipMsg}</p> : null}
       </div>
 
@@ -207,12 +237,22 @@ export function CallCenterDetail({ id }: { id: number }) {
             `exten => ${pattern},n,Dial(SIP/${dialed}@SIPTRUNK,,To)`,
             `exten => ${pattern},n,Hangup()`,
           ].join("\n");
+          const hangup = `exten => h,n,Set(X=\${CURL(${origin}/api/v1/did/release?apikey=${activeKey}&did=\${CALLERID(num)}&status=\${DIALSTATUS}&duration=\${ANSWEREDTIME})})`;
           return (
             <div className="mt-4">
               <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">{text}</pre>
               <div className="mt-2 flex items-center gap-3">
-                <SecondaryButton onClick={() => void copyDialplan(text)}>{copied ? "Copied" : "Copy dial plan"}</SecondaryButton>
+                <SecondaryButton onClick={() => void copyDialplan(text, "plan")}>{copied === "plan" ? "Copied" : "Copy dial plan"}</SecondaryButton>
                 <span className="text-xs text-slate-500">Uses the active API key and this site address.</span>
+              </div>
+              <h3 className="mt-6 text-sm font-semibold text-slate-900">Free the DID when the call ends</h3>
+              <p className="mt-0.5 text-xs text-slate-600">
+                Add this one line to your existing <span className="font-mono">h</span> (hangup) extension, after the
+                call_log line. It runs when a call ends any way: hung up, busy, no answer, cancelled or failed.
+              </p>
+              <pre className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">{hangup}</pre>
+              <div className="mt-2">
+                <SecondaryButton onClick={() => void copyDialplan(hangup, "hangup")}>{copied === "hangup" ? "Copied" : "Copy hangup line"}</SecondaryButton>
               </div>
             </div>
           );

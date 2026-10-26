@@ -8,6 +8,7 @@ type Row = {
   code: string;
   status: string;
   poolDids: number;
+  busyDids: number;
   callsToday: number;
 };
 
@@ -39,6 +40,7 @@ export function StatesClient({ initialRows }: { initialRows: Row[] }) {
               <th className="px-4 py-3">State</th>
               <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Active DIDs</th>
+              <th className="px-4 py-3">On a call now</th>
               <th className="px-4 py-3">Calls today</th>
               <th className="px-4 py-3">Status</th>
             </tr>
@@ -49,6 +51,7 @@ export function StatesClient({ initialRows }: { initialRows: Row[] }) {
                 <td className="px-4 py-3 text-slate-800">{s.name}</td>
                 <td className="px-4 py-3 font-mono text-slate-800">{s.code}</td>
                 <td className="px-4 py-3 tabular-nums text-slate-800">{s.poolDids}</td>
+                <td className="px-4 py-3 tabular-nums text-slate-800">{s.busyDids}</td>
                 <td className="px-4 py-3 tabular-nums text-slate-800">{s.callsToday}</td>
                 <td className="px-4 py-3">
                   <button

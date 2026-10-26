@@ -16,6 +16,11 @@ export async function GET() {
     where: { status: "active" },
     _count: { _all: true },
   });
+  const busyByState = await prisma.did.groupBy({
+    by: ["stateId"],
+    where: { status: "active", isInUse: true, leaseExpiresAt: { gt: new Date() } },
+    _count: { _all: true },
+  });
   const callsByStateToday = await prisma.$queryRaw<
     Array<{ state_id: number; c: bigint }>
   >`
@@ -27,6 +32,7 @@ export async function GET() {
   `;
 
   const poolMap = new Map(poolByState.map((p) => [p.stateId, p._count._all]));
+  const busyMap = new Map(busyByState.map((p) => [p.stateId, p._count._all]));
   const callsStateMap = new Map(
     callsByStateToday.map((r) => [r.state_id, Number(r.c)])
   );
@@ -38,6 +44,7 @@ export async function GET() {
       code: s.code,
       status: s.status,
       poolDids: poolMap.get(s.id) ?? 0,
+      busyDids: busyMap.get(s.id) ?? 0,
       callsToday: callsStateMap.get(s.id) ?? 0,
     })),
   });
