@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   authenticateDialer,
@@ -20,24 +21,33 @@ export async function GET(req: Request) {
 
   const auth = await authenticateDialer(req, q.get("apikey"));
   if (!auth.ok) {
-    await logRequest({
-      userId: auth.userId, kind: "release", ip: auth.ip, didNumber: did,
-      outcome: "rejected", reason: auth.reason, startedAt,
-    });
+    if (auth.logIt) {
+      after(() =>
+        logRequest({
+          userId: auth.userId, kind: "release", ip: auth.ip, didNumber: did,
+          outcome: "rejected", reason: auth.reason, startedAt,
+        })
+      );
+    }
     return textResponse("", auth.status);
   }
   if (!did) {
-    await logRequest({
-      userId: auth.userId, kind: "release", ip: auth.ip,
-      outcome: "fallback", reason: "invalid_did", startedAt,
-    });
+    after(() =>
+      logRequest({
+        userId: auth.userId, kind: "release", ip: auth.ip,
+        outcome: "fallback", reason: "invalid_did", startedAt,
+      })
+    );
     return textResponse("OK");
   }
 
   const statusParam = q.get("status");
   const callStatus =
     statusParam === "answered" || statusParam === "not_answered" ? statusParam : "unknown";
+  // A bogus duration (1e99, -5, text) must never fail the release: keep it only if it is a sane number of seconds.
   const durationRaw = Number(q.get("duration"));
+  const reportedDuration =
+    Number.isFinite(durationRaw) && durationRaw >= 0 && durationRaw <= 7 * 86_400 ? Math.round(durationRaw) : null;
 
   try {
     const released = await prisma.$transaction(async (tx) => {
@@ -62,24 +72,26 @@ export async function GET(req: Request) {
           callStatus,
           endedAt: now,
           duration:
-            Number.isFinite(durationRaw) && durationRaw >= 0
-              ? Math.round(durationRaw)
-              : Math.round((now.getTime() - log.startedAt.getTime()) / 1000),
+            reportedDuration ?? Math.max(0, Math.round((now.getTime() - log.startedAt.getTime()) / 1000)),
         },
       });
       return true;
     });
-    await logRequest({
-      userId: auth.userId, kind: "release", ip: auth.ip, didNumber: did,
-      outcome: released ? "ok" : "fallback",
-      reason: released ? null : "did_not_found", startedAt,
-    });
+    after(() =>
+      logRequest({
+        userId: auth.userId, kind: "release", ip: auth.ip, didNumber: did,
+        outcome: released ? "ok" : "fallback",
+        reason: released ? null : "no_open_call", startedAt,
+      })
+    );
   } catch (e) {
     console.error("GET /api/v1/did/release", e);
-    await logRequest({
-      userId: auth.userId, kind: "release", ip: auth.ip, didNumber: did,
-      outcome: "fallback", reason: "server_error", startedAt,
-    });
+    after(() =>
+      logRequest({
+        userId: auth.userId, kind: "release", ip: auth.ip, didNumber: did,
+        outcome: "fallback", reason: "server_error", startedAt,
+      })
+    );
   }
   return textResponse("OK");
 }

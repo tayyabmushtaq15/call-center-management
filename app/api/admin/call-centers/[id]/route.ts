@@ -21,6 +21,7 @@ export async function GET(
       email: true,
       status: true,
       leaseSeconds: true,
+      dialPrefix: true,
       createdAt: true,
       apiKeys: { select: { id: true, key: true, status: true, lastUsedAt: true } },
     },
@@ -65,6 +66,7 @@ const patchSchema = z.object({
   password: z.string().min(8).optional(),
   status: z.enum(["active", "inactive"]).optional(),
   leaseSeconds: z.number().int().min(10).max(14400).optional(),
+  dialPrefix: z.string().regex(/^\d{0,10}$/).nullable().optional(),
 });
 
 export async function PATCH(
@@ -83,6 +85,7 @@ export async function PATCH(
     if (rest.email !== undefined) data.email = rest.email;
     if (rest.status !== undefined) data.status = rest.status;
     if (rest.leaseSeconds !== undefined) data.leaseSeconds = rest.leaseSeconds;
+    if (rest.dialPrefix !== undefined) data.dialPrefix = rest.dialPrefix === "" ? null : rest.dialPrefix;
     if (password) data.password = await bcrypt.hash(password, 12);
     await prisma.user.update({
       where: { id: userId },
@@ -107,7 +110,13 @@ export async function DELETE(
   try {
     await prisma.user.delete({ where: { id: Number(id) } });
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (e: unknown) {
+    if (e && typeof e === "object" && "code" in e && e.code === "P2003") {
+      return NextResponse.json(
+        { error: "This call center has call history and cannot be deleted. Set it to inactive instead." },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: "Cannot delete" }, { status: 400 });
   }
 }

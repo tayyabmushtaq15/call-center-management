@@ -9,6 +9,14 @@ import { isIP } from "net";
  * our own proxy saw; the leftmost can be forged by the client.
  */
 export function getClientIp(req: Request): string {
+  // Local development (never production): `next dev` fills X-Forwarded-For with the socket address (::1),
+  // which would never match a whitelisted dialer. DEV_CLIENT_IP stands in for it; an explicit
+  // X-Real-IP header still wins so the rejection paths can be tried by hand.
+  const dev = process.env.DEV_CLIENT_IP;
+  if (dev && process.env.NODE_ENV !== "production") {
+    const forced = req.headers.get("x-real-ip")?.trim();
+    return cleanIp(forced || dev);
+  }
   const custom = process.env.CLIENT_IP_HEADER;
   if (custom) {
     const v = req.headers.get(custom)?.trim();
@@ -52,7 +60,8 @@ export function normalizeAllowedEntry(raw: string): string | null {
   if (slash === -1) return isIP(s) ? s.toLowerCase() : null;
   const base = s.slice(0, slash);
   const bits = Number(s.slice(slash + 1));
-  if (v4ToInt(base) === null || !Number.isInteger(bits) || bits < 0 || bits > 32) return null;
+  // Nothing wider than /16: a /0 to /15 range is almost certainly a typo and would whitelist a large part of the internet.
+  if (v4ToInt(base) === null || !Number.isInteger(bits) || bits < 16 || bits > 32) return null;
   return `${base}/${bits}`;
 }
 

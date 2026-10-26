@@ -89,7 +89,7 @@ export async function POST(req: Request) {
 }
 
 const bulkSchema = z.object({
-  ids: z.array(z.number()).min(1),
+  ids: z.array(z.number().int()).min(1).max(10_000),
   action: z.enum(["delete", "activate", "deactivate"]),
 });
 
@@ -99,8 +99,23 @@ export async function PATCH(req: Request) {
   try {
     const body = bulkSchema.parse(await req.json());
     if (body.action === "delete") {
-      await prisma.did.deleteMany({
-        where: { id: { in: body.ids }, isInUse: false },
+      // A DID with call history is referenced by its call logs and cannot be deleted without losing them.
+      // Delete the rest and report the skipped ones instead of failing the whole batch.
+      const withHistory = await prisma.callLog.findMany({
+        where: { didId: { in: body.ids } },
+        distinct: ["didId"],
+        select: { didId: true },
+      });
+      const keep = new Set(withHistory.map((l) => l.didId));
+      const deletable = body.ids.filter((id) => !keep.has(id));
+      const { count } = await prisma.did.deleteMany({
+        where: { id: { in: deletable }, isInUse: false },
+      });
+      return NextResponse.json({
+        success: true,
+        deleted: count,
+        skippedWithHistory: keep.size,
+        note: keep.size ? "DIDs with call history cannot be deleted; deactivate them instead." : undefined,
       });
     } else if (body.action === "activate") {
       await prisma.did.updateMany({

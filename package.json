@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "node scripts/dev-local.mjs",
+    "simulate": "node scripts/simulate-dialer.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

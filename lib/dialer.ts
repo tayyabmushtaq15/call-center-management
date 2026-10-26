@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientIp, ipMatches } from "@/lib/ip";
 import { checkApiKeyRateLimit } from "@/lib/rate-limit";
 import { normalizeUsPhone } from "@/lib/phone";
+import { count, hit } from "@/lib/throttle";
 
 /**
  * Shared pieces of the Asterisk/Vicidial dialer API.
@@ -31,6 +32,19 @@ export function formatDid(tenDigits: string): string {
   return `${process.env.DID_OUTPUT_PREFIX ?? ""}${tenDigits}`;
 }
 
+/**
+ * The dialed (B) number as 10 digits. The dialer may send it with the call center's dial prefix still on
+ * the front (e.g. 7084 + 9045551234); that is stripped when the digits are not already a valid number.
+ * The prefix is optional, so a number without it works too.
+ */
+export function resolveDestination(raw: string | null, dialPrefix: string | null): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  const direct = normalizeUsPhone(digits);
+  if (direct) return direct;
+  if (dialPrefix && digits.startsWith(dialPrefix)) return normalizeUsPhone(digits.slice(dialPrefix.length));
+  return null;
+}
+
 export function normalizeDidParam(raw: string | null): string | null {
   return raw ? normalizeUsPhone(raw) : null;
 }
@@ -54,13 +68,28 @@ export async function lookupState(areaCode: string): Promise<AreaEntry | null> {
 }
 
 export type DialerAuth =
-  | { ok: true; ip: string; userId: number; apiKeyId: number; leaseSeconds: number }
-  | { ok: false; ip: string; userId: number | null; status: number; reason: string };
+  | { ok: true; ip: string; userId: number; apiKeyId: number; leaseSeconds: number; dialPrefix: string | null }
+  | { ok: false; ip: string; userId: number | null; status: number; reason: string; logIt: boolean };
+
+const FAIL_WINDOW_MS = 60_000;
+/** Past this many rejected requests per minute from one IP, stop touching the database for it at all. */
+const FAIL_SHORT_CIRCUIT = 30;
+/** Rejected requests are logged for diagnosis, but only the first few per IP per minute, so junk traffic can't fill the table. */
+const FAIL_LOGGED = 5;
+/** Across all sources, at most this many rejected requests are logged per minute (a flood from many IPs still can't fill the table). */
+const FAIL_LOGGED_GLOBAL = 100;
+
+function reject(ip: string, userId: number | null, status: number, reason: string): DialerAuth {
+  const n = hit(`fail:${ip}`, FAIL_WINDOW_MS);
+  const logIt = n <= FAIL_LOGGED && hit("fail-log:all", FAIL_WINDOW_MS) <= FAIL_LOGGED_GLOBAL;
+  return { ok: false, ip, userId, status, reason, logIt };
+}
 
 /** API key + source-IP whitelist + rate limit. The IP check fails closed: a call center with no allowed IPs is rejected. */
 export async function authenticateDialer(req: Request, apiKey: string | null): Promise<DialerAuth> {
   const ip = getClientIp(req);
-  if (!apiKey) return { ok: false, ip, userId: null, status: 401, reason: "missing_api_key" };
+  if (count(`fail:${ip}`, FAIL_WINDOW_MS) >= FAIL_SHORT_CIRCUIT) return reject(ip, null, 429, "throttled");
+  if (!apiKey) return reject(ip, null, 401, "missing_api_key");
 
   const row = await prisma.apiKey.findFirst({
     where: { key: apiKey, status: "active" },
@@ -71,19 +100,20 @@ export async function authenticateDialer(req: Request, apiKey: string | null): P
         select: {
           status: true,
           leaseSeconds: true,
+          dialPrefix: true,
           allowedIps: { where: { status: "active" }, select: { ip: true } },
         },
       },
     },
   });
   if (!row || row.user.status !== "active") {
-    return { ok: false, ip, userId: null, status: 401, reason: "invalid_api_key" };
+    return reject(ip, null, 401, "invalid_api_key");
   }
   if (!row.user.allowedIps.some((a) => ipMatches(ip, a.ip))) {
-    return { ok: false, ip, userId: row.userId, status: 403, reason: "ip_not_allowed" };
+    return reject(ip, row.userId, 403, "ip_not_allowed");
   }
   if (!(await checkApiKeyRateLimit(row.id))) {
-    return { ok: false, ip, userId: row.userId, status: 429, reason: "rate_limited" };
+    return reject(ip, row.userId, 429, "rate_limited");
   }
   return {
     ok: true,
@@ -91,6 +121,7 @@ export async function authenticateDialer(req: Request, apiKey: string | null): P
     userId: row.userId,
     apiKeyId: row.id,
     leaseSeconds: row.user.leaseSeconds,
+    dialPrefix: row.user.dialPrefix,
   };
 }
 

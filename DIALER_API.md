@@ -35,3 +35,17 @@ If the `h` extension sits in the same context as the dial line, `${CALLERID(num)
 ## Deploying the schema
 
 `prisma/migrations/20261020000000_dialer_api` is additive only. Apply it with `npm run db:deploy` (never `db:migrate` against the shared Supabase database).
+
+## Dial prefix (optional, per call center)
+
+A call center can have a dial prefix (for example `7084`) that its dialer puts in front of the dialed number. Set it on the call center's page. The API accepts the number either way and strips the prefix when it is present:
+
+```
+exten => _7084X.,1,Set(RESPONSECALLERID=${CURL(https://PORTAL_HOST/api/v1/did?apikey=KEY&number=${EXTEN:4}&callerId=${CALLERID(num)})})
+```
+
+`number=${EXTEN}` (prefix still attached) works too. Leave the prefix empty for call centers that don't use one. The call center page shows a ready-made dial plan with the active key and this site's address.
+
+## No release line
+
+The `/release` call is optional. A dial plan with only the four lines above works: the DID is then freed when its lease (set per call center) runs out. For exact release at hangup without a dialplan line, the portal needs to listen to the dialer's call events (Asterisk AMI), which is not built yet.

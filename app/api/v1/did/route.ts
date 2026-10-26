@@ -1,12 +1,14 @@
+import { after } from "next/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { normalizeUsPhone, extractAreaCode } from "@/lib/phone";
+import { extractAreaCode } from "@/lib/phone";
 import {
   authenticateDialer,
   fallbackCallerId,
   formatDid,
   logRequest,
   lookupState,
+  resolveDestination,
   textResponse,
 } from "@/lib/dialer";
 
@@ -21,22 +23,30 @@ export async function GET(req: Request) {
   const startedAt = Date.now();
   const q = new URL(req.url).searchParams;
   const fallback = fallbackCallerId(q.get("callerId"));
-  const normalized = normalizeUsPhone(q.get("number") ?? "");
+  const rawDigits = (q.get("number") ?? "").replace(/\D/g, "").slice(0, 20);
 
   const auth = await authenticateDialer(req, q.get("apikey"));
   if (!auth.ok) {
-    await logRequest({
-      userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized,
-      outcome: "rejected", reason: auth.reason, startedAt,
-    });
+    if (auth.logIt) {
+      after(() =>
+        logRequest({
+          userId: auth.userId, kind: "did", ip: auth.ip, destination: rawDigits || null,
+          outcome: "rejected", reason: auth.reason, startedAt,
+        })
+      );
+    }
     return textResponse(fallback, auth.status);
   }
 
-  const fail = async (reason: string, status = 200) => {
-    await logRequest({
-      userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized,
-      outcome: "fallback", reason, startedAt,
-    });
+  const normalized = resolveDestination(q.get("number"), auth.dialPrefix);
+
+  const fail = (reason: string, status = 200) => {
+    after(() =>
+      logRequest({
+        userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized ?? (rawDigits || null),
+        outcome: "fallback", reason, startedAt,
+      })
+    );
     return textResponse(fallback, status);
   };
 
@@ -48,60 +58,67 @@ export async function GET(req: Request) {
     if (!area) return fail("unknown_area_code");
     if (!area.active) return fail("state_inactive");
 
-    const picked = await prisma.$transaction(async (tx) => {
-      // Any call center may use any DID in the shared pool; no per-center assignment.
-      // Free = not in use, or its lease ran out (the dialer never sent a release).
-      const rows = await tx.$queryRaw<Array<{ id: number; number: string }>>(Prisma.sql`
-        SELECT d.id, d.number
+    // One statement, so the reservation is atomic and costs a single round trip:
+    // pick a free DID (FOR UPDATE SKIP LOCKED keeps concurrent calls off the same row),
+    // lock it with a lease, close any call left open on it, and open the new call log.
+    // Free = not in use, or its lease ran out (the dialer never reported the end).
+    // Timestamp columns hold naive UTC, so every comparison goes through
+    // (now() AT TIME ZONE 'UTC') and does not depend on the database session timezone.
+    const rows = await prisma.$queryRaw<Array<{ number: string }>>(Prisma.sql`
+      WITH picked AS (
+        SELECT d.id
         FROM callcenter.dids d
         WHERE d.state_id = ${area.stateId}
           AND d.status::text = 'active'
-          AND (d.is_in_use = false OR d.lease_expires_at IS NULL OR d.lease_expires_at < now())
+          AND (d.is_in_use = false
+               OR d.lease_expires_at IS NULL
+               OR d.lease_expires_at < (now() AT TIME ZONE 'UTC'))
         ORDER BY d.total_uses ASC, d.id ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
-      `);
-      if (!rows.length) return null;
-      const { id: didId, number } = rows[0];
-      const now = new Date();
-
-      // A lease that expired without a release leaves its old call open; close it.
-      await tx.callLog.updateMany({
-        where: { didId, callStatus: "in_progress" },
-        data: { callStatus: "unknown", endedAt: now },
-      });
-      await tx.did.update({
-        where: { id: didId },
-        data: {
-          isInUse: true,
-          leaseExpiresAt: new Date(now.getTime() + auth.leaseSeconds * 1000),
-          totalUses: { increment: 1 },
-          lastUsedAt: now,
-        },
-      });
-      await tx.callLog.create({
-        data: {
-          userId: auth.userId,
-          didId,
-          switchId: null,
-          receiverNumber: normalized,
-          receiverState: area.code,
-          callStatus: "in_progress",
-          startedAt: now,
-        },
-      });
-      return number;
-    });
-
+      ),
+      closed AS (
+        UPDATE callcenter.call_logs cl
+        SET call_status = 'unknown'::callcenter."CallLogStatus",
+            ended_at = (now() AT TIME ZONE 'UTC')
+        FROM picked
+        WHERE cl.did_id = picked.id AND cl.call_status::text = 'in_progress'
+        RETURNING cl.id
+      ),
+      upd AS (
+        UPDATE callcenter.dids d
+        SET is_in_use = true,
+            lease_expires_at = (now() AT TIME ZONE 'UTC') + make_interval(secs => ${auth.leaseSeconds}::int),
+            total_uses = d.total_uses + 1,
+            last_used_at = (now() AT TIME ZONE 'UTC')
+        FROM picked
+        WHERE d.id = picked.id
+        RETURNING d.id, d.number
+      ),
+      ins AS (
+        INSERT INTO callcenter.call_logs
+          (user_id, did_id, switch_id, receiver_number, receiver_state, call_status, started_at)
+        SELECT ${auth.userId}::int, upd.id, NULL, ${normalized}::text, ${area.code}::text,
+               'in_progress'::callcenter."CallLogStatus", (now() AT TIME ZONE 'UTC')
+        FROM upd
+        RETURNING id
+      )
+      SELECT upd.number FROM upd
+    `);
+    const picked = rows[0]?.number;
     if (!picked) return fail("no_did_available");
 
-    await prisma.apiKey.updateMany({
-      where: { id: auth.apiKeyId, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: new Date(Date.now() - 60_000) } }] },
-      data: { lastUsedAt: new Date() },
-    });
-    await logRequest({
-      userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized,
-      didNumber: picked, outcome: "ok", startedAt,
+    after(async () => {
+      await prisma.apiKey
+        .updateMany({
+          where: { id: auth.apiKeyId, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: new Date(Date.now() - 60_000) } }] },
+          data: { lastUsedAt: new Date() },
+        })
+        .catch(() => undefined);
+      await logRequest({
+        userId: auth.userId, kind: "did", ip: auth.ip, destination: normalized,
+        didNumber: picked, outcome: "ok", startedAt,
+      });
     });
     return textResponse(formatDid(picked));
   } catch (e) {

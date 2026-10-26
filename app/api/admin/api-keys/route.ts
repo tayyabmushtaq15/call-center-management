@@ -56,11 +56,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, apiKey: newKey });
     }
     if (body.action === "activate" || body.action === "deactivate") {
-      const active = body.action === "activate";
-      await prisma.apiKey.updateMany({
-        where: { userId: body.userId },
-        data: { status: active ? "active" : "inactive" },
-      });
+      if (body.action === "deactivate") {
+        await prisma.apiKey.updateMany({
+          where: { userId: body.userId },
+          data: { status: "inactive" },
+        });
+      } else {
+        // Re-enable only the newest key. Older keys were rotated out (possibly because they leaked) and stay off.
+        const newest = await prisma.apiKey.findFirst({
+          where: { userId: body.userId },
+          orderBy: { id: "desc" },
+          select: { id: true },
+        });
+        if (newest) {
+          await prisma.apiKey.update({ where: { id: newest.id }, data: { status: "active" } });
+        }
+      }
       return NextResponse.json({ success: true });
     }
     return NextResponse.json({ error: "Bad request" }, { status: 400 });

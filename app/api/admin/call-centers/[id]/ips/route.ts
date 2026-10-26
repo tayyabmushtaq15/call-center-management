@@ -27,7 +27,7 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     const body = addSchema.parse(await req.json());
     const ip = normalizeAllowedEntry(body.ip);
-    if (!ip) return NextResponse.json({ error: "Invalid IP or CIDR" }, { status: 400 });
+    if (!ip) return NextResponse.json({ error: "Enter an IP address, or an IPv4 range no wider than /16 (e.g. 203.0.113.0/28)." }, { status: 400 });
     await prisma.allowedIp.create({
       data: { userId, ip, label: body.label?.trim() || null },
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { PageHeader, StatTile, cardClass, inputClass, PrimaryButton } from "@/components/admin-chrome";
+import { PageHeader, StatTile, cardClass, inputClass, PrimaryButton, SecondaryButton } from "@/components/admin-chrome";
 
 type AllowedIpRow = { id: number; ip: string; label: string | null; status: string };
 type RequestRow = {
@@ -23,6 +23,8 @@ export function CallCenterDetail({ id }: { id: number }) {
   const [newLabel, setNewLabel] = useState("");
   const [ipMsg, setIpMsg] = useState("");
   const [lease, setLease] = useState<number | null>(null);
+  const [prefix, setPrefix] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     const [u, ipRes, reqRes] = await Promise.all([
@@ -33,7 +35,8 @@ export function CallCenterDetail({ id }: { id: number }) {
     setData(u);
     setIps(ipRes.ips ?? []);
     setRequests(reqRes.requests ?? []);
-    setLease((prev) => prev ?? u.user?.leaseSeconds ?? 180);
+    setLease((prev) => prev ?? u.user?.leaseSeconds ?? 3600);
+    setPrefix((prev) => prev ?? u.user?.dialPrefix ?? "");
   }, [id]);
 
   useEffect(() => {
@@ -54,6 +57,7 @@ export function CallCenterDetail({ id }: { id: number }) {
     email: string;
     status: string;
     leaseSeconds: number;
+    dialPrefix: string | null;
     apiKeys: { id: number; key: string; status: string }[];
   };
   const stats = data.stats as Record<string, number>;
@@ -87,6 +91,28 @@ export function CallCenterDetail({ id }: { id: number }) {
   async function removeIp(ipId: number) {
     await fetch(`/api/admin/call-centers/${id}/ips?ipId=${ipId}`, { method: "DELETE" });
     await load();
+  }
+
+  async function savePrefix() {
+    setIpMsg("");
+    const value = (prefix ?? "").trim();
+    const res = await fetch(`/api/admin/call-centers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dialPrefix: value === "" ? null : value }),
+    });
+    setIpMsg(res.ok ? "Dial prefix saved" : "Prefix must be digits only (up to 10)");
+    if (res.ok) await load();
+  }
+
+  async function copyDialplan(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setIpMsg("Copy failed. Select the text and copy it manually.");
+    }
   }
 
   async function saveLease() {
@@ -168,6 +194,46 @@ export function CallCenterDetail({ id }: { id: number }) {
           <PrimaryButton onClick={() => void saveLease()}>Save lease</PrimaryButton>
         </div>
         {ipMsg ? <p className="mt-2 text-sm text-slate-300">{ipMsg}</p> : null}
+      </div>
+
+      <div className={`${cardClass} p-5`}>
+        <h2 className="text-sm font-semibold text-slate-100">Dial plan for this call center</h2>
+        <p className="mt-0.5 text-xs text-slate-400">
+          Optional dial prefix: digits the dialer puts in front of the dialed number (for example 7084). Leave empty for none.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <input
+            className={`${inputClass} w-40`}
+            placeholder="e.g. 7084"
+            inputMode="numeric"
+            maxLength={10}
+            value={prefix ?? ""}
+            onChange={(e) => setPrefix(e.target.value.replace(/\D/g, ""))}
+          />
+          <PrimaryButton onClick={() => void savePrefix()}>Save prefix</PrimaryButton>
+        </div>
+        {(() => {
+          const activeKey = user.apiKeys.find((k) => k.status === "active")?.key ?? "YOUR_API_KEY";
+          const saved = user.dialPrefix ?? "";
+          const origin = typeof window !== "undefined" ? window.location.origin : "";
+          const pattern = saved ? `_${saved}X.` : "_X.";
+          const dialed = saved ? `\${EXTEN:${saved.length}}` : "\${EXTEN}";
+          const text = [
+            `exten => ${pattern},1,Set(RESPONSECALLERID=\${CURL(${origin}/api/v1/did?apikey=${activeKey}&number=${dialed}&callerId=\${CALLERID(num)})})`,
+            `exten => ${pattern},n,Set(CALLERID(num)=\${RESPONSECALLERID})`,
+            `exten => ${pattern},n,Dial(SIP/${dialed}@SIPTRUNK,,To)`,
+            `exten => ${pattern},n,Hangup()`,
+          ].join("\n");
+          return (
+            <div className="mt-4">
+              <pre className="overflow-x-auto rounded-lg border border-slate-600/50 bg-slate-900/60 p-3 text-xs text-slate-200">{text}</pre>
+              <div className="mt-2 flex items-center gap-3">
+                <SecondaryButton onClick={() => void copyDialplan(text)}>{copied ? "Copied" : "Copy dial plan"}</SecondaryButton>
+                <span className="text-xs text-slate-500">Uses the active API key and this site address.</span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className={`${cardClass} p-5`}>

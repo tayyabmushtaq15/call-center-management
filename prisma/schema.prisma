@@ -92,6 +92,8 @@ model User {
   status        EntityStatus          @default(active)
   /// How long a DID handed out by GET /api/v1/did stays locked if no release arrives.
   leaseSeconds  Int                   @default(3600) @map("lease_seconds")
+  /// Optional digits the dialer puts in front of the dialed number (e.g. 7084). The dialer API strips it if present.
+  dialPrefix    String?               @map("dial_prefix") @db.VarChar(10)
   createdAt     DateTime              @default(now()) @map("created_at")
   allowedIps    AllowedIp[]
   requestLogs   DidRequestLog[]

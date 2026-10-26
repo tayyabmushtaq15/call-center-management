@@ -15,17 +15,17 @@ export async function register() {
       await prisma.$transaction([
         prisma.$executeRaw`
           UPDATE callcenter.call_logs
-          SET call_status = 'unknown', ended_at = now()
+          SET call_status = 'unknown', ended_at = (now() AT TIME ZONE 'UTC')
           WHERE call_status::text = 'in_progress'
             AND switch_id IS NULL
             AND did_id IN (
               SELECT id FROM callcenter.dids
-              WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < now()
+              WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < (now() AT TIME ZONE 'UTC')
             )`,
         prisma.$executeRaw`
           UPDATE callcenter.dids
           SET is_in_use = false, lease_expires_at = NULL
-          WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < now()`,
+          WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < (now() AT TIME ZONE 'UTC')`,
       ]);
     } catch (e) {
       console.error("lease sweeper failed", e);

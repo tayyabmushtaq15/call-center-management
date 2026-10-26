@@ -6,8 +6,12 @@ import { Prisma } from "@/app/generated/prisma/client";
 function toCsv(rows: Record<string, string | number | null>[]) {
   if (!rows.length) return "";
   const keys = Object.keys(rows[0]);
-  const esc = (v: unknown) =>
-    `"${String(v ?? "").replace(/"/g, '""')}"`;
+  // Cells starting with = + - @ (or tab/CR) would run as a formula when the CSV is opened in Excel; a leading ' defuses them.
+  const esc = (v: unknown) => {
+    let t = String(v ?? "");
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    return `"${t.replace(/"/g, '""')}"`;
+  };
   return [keys.join(","), ...rows.map((r) => keys.map((k) => esc(r[k])).join(","))].join(
     "\n"
   );
