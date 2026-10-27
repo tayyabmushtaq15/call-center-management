@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminSession } from "@/lib/require-admin";
 import { Prisma } from "@/app/generated/prisma/client";
+import { withCountryCode } from "@/lib/phone";
 
 function toCsv(rows: Record<string, string | number | null>[]) {
   if (!rows.length) return "";
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
   const rows = logs.map((l) => ({
     receiver: l.receiverNumber,
     state: l.receiverState,
-    did: l.did.number,
+    did: withCountryCode(l.did.number),
     call_center: l.user.name,
     status: l.callStatus,
     duration: l.duration ?? "",

@@ -9,7 +9,6 @@ import {
   IconChart,
   IconDashboard,
   IconGear,
-  IconGrid,
   IconKey,
   IconList,
   IconMap,
@@ -24,7 +23,6 @@ const links: { href: string; label: string; icon: ReactElement }[] = [
   { href: "/admin/api-keys", label: "API keys", icon: <IconKey /> },
   { href: "/admin/call-logs", label: "Call logs", icon: <IconList /> },
   { href: "/admin/reports", label: "Reports", icon: <IconChart /> },
-  { href: "/admin/area-codes", label: "Area code map", icon: <IconGrid /> },
   { href: "/admin/settings", label: "Settings", icon: <IconGear /> },
 ];
 

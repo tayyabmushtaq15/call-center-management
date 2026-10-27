@@ -36,7 +36,7 @@ If the end of a call is never reported (the dialer crashed, the request was lost
 
 ## Dial plan
 
-The call center page shows both parts ready to copy, with the active key and this site's address. With the `7084` prefix:
+The call center page shows the dial plan ready to copy, with the active key and this site's address. The hangup line is shown there too once **Settings > Show the hangup line** is switched on. With the `7084` prefix:
 
 ```
 exten => _7084X.,1,AGI(agi://127.0.0.1:4577/call_log)

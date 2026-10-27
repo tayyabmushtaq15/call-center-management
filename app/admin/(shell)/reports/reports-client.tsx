@@ -1,5 +1,6 @@
 "use client";
 
+import { withCountryCode } from "@/lib/phone";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bar,
@@ -531,7 +532,7 @@ function DidUsageView({ data }: { data: Partial<DidUsage> }) {
         title="Most used (top 20)"
         empty="No DIDs."
         columns={[
-          { key: "number", header: "Number", cell: (r) => (r as DidInRow).number },
+          { key: "number", header: "Number", cell: (r) => withCountryCode((r as DidInRow).number) },
           { key: "state", header: "State", cell: (r) => (r as DidInRow).state?.code },
           { key: "uses", header: "Total uses", cell: (r) => (r as DidInRow).totalUses },
         ]}
@@ -542,7 +543,7 @@ function DidUsageView({ data }: { data: Partial<DidUsage> }) {
         title="Least used (20)"
         empty="No DIDs."
         columns={[
-          { key: "number", header: "Number", cell: (r) => (r as DidInRow).number },
+          { key: "number", header: "Number", cell: (r) => withCountryCode((r as DidInRow).number) },
           { key: "state", header: "State", cell: (r) => (r as DidInRow).state?.code },
           { key: "uses", header: "Total uses", cell: (r) => (r as DidInRow).totalUses },
         ]}

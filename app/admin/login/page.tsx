@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconPhone } from "@/components/icons";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -64,8 +65,7 @@ export default function AdminLoginPage() {
         </label>
         <label className="block text-sm">
           <span className="text-xs font-medium text-slate-600">Password</span>
-          <input
-            type="password"
+          <PasswordInput
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 transition focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-100"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

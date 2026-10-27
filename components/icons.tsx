@@ -88,3 +88,32 @@ export const IconPulse = (p: P) => (
     <path d="M3 12h4l3-8 4 16 3-8h4" />
   </Icon>
 );
+export const IconEye = (p: P) => (
+  <Icon {...p}>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
+export const IconEyeOff = (p: P) => (
+  <Icon {...p}>
+    <path d="M17.9 17.9A10.4 10.4 0 0 1 12 19C5.6 19 2 12 2 12a18 18 0 0 1 4.1-5.1M9.9 5.2A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
+  </Icon>
+);
+export const IconClock = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+export const IconBars = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 20V11M10 20V5M16 20v-9M22 20H2" />
+  </Icon>
+);
+export const IconInbox = (p: P) => (
+  <Icon {...p}>
+    <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+    <path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z" />
+  </Icon>
+);

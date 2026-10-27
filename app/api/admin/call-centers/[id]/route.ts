@@ -22,6 +22,8 @@ export async function GET(
       status: true,
       dialPrefix: true,
       leaseSeconds: true,
+      chargePerCall: true,
+      chargePerAttended: true,
       createdAt: true,
       apiKeys: { select: { id: true, key: true, status: true, lastUsedAt: true } },
     },
@@ -35,7 +37,9 @@ export async function GET(
   const monthAgo = new Date(start);
   monthAgo.setDate(monthAgo.getDate() - 30);
 
-  const [today, week, month, answered, duration] = await Promise.all([
+  const settings = await prisma.systemSettings.findUnique({ where: { id: 1 }, select: { showHangupLine: true } });
+
+  const [today, week, month, answered, duration, attendedMonth] = await Promise.all([
     prisma.callLog.count({ where: { userId, startedAt: { gte: start } } }),
     prisma.callLog.count({ where: { userId, startedAt: { gte: weekAgo } } }),
     prisma.callLog.count({ where: { userId, startedAt: { gte: monthAgo } } }),
@@ -46,14 +50,30 @@ export async function GET(
       where: { userId, startedAt: { gte: start } },
       _sum: { duration: true },
     }),
+    prisma.callLog.count({
+      where: { userId, startedAt: { gte: monthAgo }, callStatus: "answered" },
+    }),
   ]);
 
+  // Charges for the last 30 days: every call at the per-call rate, plus every attended (answered) call at the attended rate.
+  const totalCharges = user.chargePerCall
+    .mul(month)
+    .add(user.chargePerAttended.mul(attendedMonth))
+    .toDecimalPlaces(4);
+
   return NextResponse.json({
-    user,
+    user: {
+      ...user,
+      chargePerCall: user.chargePerCall.toNumber(),
+      chargePerAttended: user.chargePerAttended.toNumber(),
+    },
+    settings: { showHangupLine: settings?.showHangupLine ?? false },
     stats: {
       callsToday: today,
       callsWeek: week,
       callsMonth: month,
+      attendedMonth,
+      totalCharges: totalCharges.toNumber(),
       answerRateToday: today ? answered / today : 0,
       talkSecondsToday: duration._sum.duration ?? 0,
     },
@@ -67,6 +87,8 @@ const patchSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
   dialPrefix: z.string().regex(/^\d{0,10}$/).nullable().optional(),
   leaseSeconds: z.number().int().min(10).max(86400).optional(),
+  chargePerCall: z.number().min(0).max(1000).optional(),
+  chargePerAttended: z.number().min(0).max(1000).optional(),
 });
 
 export async function PATCH(
@@ -85,6 +107,8 @@ export async function PATCH(
     if (rest.email !== undefined) data.email = rest.email;
     if (rest.status !== undefined) data.status = rest.status;
     if (rest.leaseSeconds !== undefined) data.leaseSeconds = rest.leaseSeconds;
+    if (rest.chargePerCall !== undefined) data.chargePerCall = rest.chargePerCall;
+    if (rest.chargePerAttended !== undefined) data.chargePerAttended = rest.chargePerAttended;
     if (rest.dialPrefix !== undefined) data.dialPrefix = rest.dialPrefix === "" ? null : rest.dialPrefix;
     if (password) data.password = await bcrypt.hash(password, 12);
     await prisma.user.update({

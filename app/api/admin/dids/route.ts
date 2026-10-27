@@ -5,45 +5,86 @@ import { requireAdminSession } from "@/lib/require-admin";
 import { normalizeUsPhone, extractAreaCode } from "@/lib/phone";
 import { z } from "zod";
 
+type Filters = { q?: string | null; stateId?: string | number | null; status?: string | null; free?: boolean };
+
+/** The DID list filters, shared by the list and "delete all" so both act on exactly the same set. */
+function buildWhere({ q, stateId, status, free }: Filters): Prisma.DidWhereInput {
+  const where: Prisma.DidWhereInput = {};
+  if (q) {
+    // A search for 12102821540 must find the DID stored as 2102821540.
+    const digits = q.replace(/\D/g, "");
+    where.number = { contains: digits.length > 10 && digits.startsWith("1") ? digits.slice(1) : digits };
+  }
+  if (stateId) where.stateId = Number(stateId);
+  if (status === "active" || status === "inactive") where.status = status;
+  if (free) {
+    // Free = active and not on a call (or its reservation timed out)
+    where.status = "active";
+    where.OR = [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }];
+  }
+  return where;
+}
+
 export async function GET(req: Request) {
   const admin = await requireAdminSession();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q")?.trim();
-  const stateId = searchParams.get("stateId");
-  const status = searchParams.get("status");
-  const freeOnly = searchParams.get("free") === "1";
-
-  const where: Prisma.DidWhereInput = {};
-  if (q) {
-    where.number = { contains: q.replace(/\D/g, "") };
-  }
-  if (stateId) where.stateId = Number(stateId);
-  if (status === "active" || status === "inactive") where.status = status;
-  if (freeOnly) {
-    // Free = active and not on a call (or its reservation timed out)
-    where.status = "active";
-    where.OR = [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }];
-  }
-
-  const dids = await prisma.did.findMany({
-    where,
-    orderBy: { id: "desc" },
-    take: 500,
-    include: {
-      state: true,
-      callLogs: {
-        where: { callStatus: "in_progress" },
-        orderBy: { startedAt: "desc" },
-        take: 1,
-        select: { user: { select: { id: true, name: true } } },
-      },
-    },
+  const where = buildWhere({
+    q: searchParams.get("q")?.trim(),
+    stateId: searchParams.get("stateId"),
+    status: searchParams.get("status"),
+    free: searchParams.get("free") === "1",
   });
 
+  // One page at a time. The count (the slow part on a big table) is skipped when the client already knows it,
+  // i.e. when only the page changed, and runs in parallel with the page query otherwise.
+  const page = Math.max(1, Math.floor(Number(searchParams.get("page"))) || 1);
+  const pageSize = Math.min(200, Math.max(10, Math.floor(Number(searchParams.get("pageSize"))) || 50));
+  const skipTotal = searchParams.get("skipTotal") === "1";
+
+  const [rows, total] = await Promise.all([
+    prisma.did.findMany({
+      where,
+      orderBy: { id: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        number: true,
+        areaCode: true,
+        status: true,
+        isInUse: true,
+        leaseExpiresAt: true,
+        totalUses: true,
+        lastUsedAt: true,
+        createdAt: true,
+        state: { select: { code: true, name: true } },
+      },
+    }),
+    skipTotal ? Promise.resolve(null) : prisma.did.count({ where }),
+  ]);
+
+  // "Used by" only matters for numbers on a call right now, so look it up for those few, not for every row.
+  const now = Date.now();
+  const onCallIds = rows
+    .filter((r) => r.isInUse && r.leaseExpiresAt && r.leaseExpiresAt.getTime() > now)
+    .map((r) => r.id);
+  const userByDid = new Map<number, { id: number; name: string }>();
+  if (onCallIds.length) {
+    const open = await prisma.callLog.findMany({
+      where: { didId: { in: onCallIds }, callStatus: "in_progress" },
+      orderBy: { startedAt: "desc" },
+      select: { didId: true, user: { select: { id: true, name: true } } },
+    });
+    for (const l of open) if (!userByDid.has(l.didId)) userByDid.set(l.didId, l.user);
+  }
+
   return NextResponse.json({
-    dids: dids.map(({ callLogs, ...d }) => ({ ...d, user: callLogs[0]?.user ?? null })),
+    total,
+    page,
+    pageSize,
+    dids: rows.map((d) => ({ ...d, user: userByDid.get(d.id) ?? null })),
   });
 }
 
@@ -88,6 +129,12 @@ export async function POST(req: Request) {
   }
 }
 
+const filtersSchema = z.object({
+  q: z.string().max(40).optional().nullable(),
+  stateId: z.union([z.string(), z.number()]).optional().nullable(),
+  free: z.boolean().optional(),
+});
+
 const bulkSchema = z.object({
   ids: z.array(z.number().int()).min(1).max(10_000),
   action: z.enum(["delete", "activate", "deactivate"]),
@@ -97,25 +144,49 @@ export async function PATCH(req: Request) {
   const admin = await requireAdminSession();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const body = bulkSchema.parse(await req.json());
-    if (body.action === "delete") {
-      // A DID with call history is referenced by its call logs and cannot be deleted without losing them.
-      // Delete the rest and report the skipped ones instead of failing the whole batch.
-      const withHistory = await prisma.callLog.findMany({
-        where: { didId: { in: body.ids } },
-        distinct: ["didId"],
-        select: { didId: true },
-      });
-      const keep = new Set(withHistory.map((l) => l.didId));
-      const deletable = body.ids.filter((id) => !keep.has(id));
-      const { count } = await prisma.did.deleteMany({
-        where: { id: { in: deletable }, OR: [{ isInUse: false }, { leaseExpiresAt: { lt: new Date() } }] },
-      });
+    const raw = await req.json();
+    if (raw && raw.action === "delete_all") {
+      // Delete every DID matching the filters, not just the first 500 shown. A DID on a call right now is skipped.
+      // Their call logs go with them (the logs reference the DID).
+      const f = filtersSchema.parse(raw);
+      const where = buildWhere({ q: f.q, stateId: f.stateId, free: f.free });
+      const notOnCall: Prisma.DidWhereInput = {
+        OR: [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
+      };
+      const deletable: Prisma.DidWhereInput = { AND: [where, notOnCall] };
+      const matching = await prisma.did.count({ where });
+      const [logs, dids] = await prisma.$transaction([
+        prisma.callLog.deleteMany({ where: { did: deletable } }),
+        prisma.did.deleteMany({ where: deletable }),
+      ]);
       return NextResponse.json({
         success: true,
-        deleted: count,
-        skippedWithHistory: keep.size,
-        note: keep.size ? "DIDs with call history cannot be deleted; deactivate them instead." : undefined,
+        deleted: dids.count,
+        skippedOnCall: Math.max(0, matching - dids.count),
+        callLogsDeleted: logs.count,
+      });
+    }
+    const body = bulkSchema.parse(raw);
+    if (body.action === "delete") {
+      // A DID on a call right now is skipped. Every other selected DID is deleted together with its call logs
+      // (the logs reference the DID, so they cannot outlive it).
+      const deletable = await prisma.did.findMany({
+        where: {
+          id: { in: body.ids },
+          OR: [{ isInUse: false }, { leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
+        },
+        select: { id: true },
+      });
+      const ids = deletable.map((d) => d.id);
+      const [logs, dids] = await prisma.$transaction([
+        prisma.callLog.deleteMany({ where: { didId: { in: ids } } }),
+        prisma.did.deleteMany({ where: { id: { in: ids } } }),
+      ]);
+      return NextResponse.json({
+        success: true,
+        deleted: dids.count,
+        skippedOnCall: body.ids.length - ids.length,
+        callLogsDeleted: logs.count,
       });
     } else if (body.action === "activate") {
       await prisma.did.updateMany({

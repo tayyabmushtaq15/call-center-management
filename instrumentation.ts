@@ -4,6 +4,9 @@
  *   call log left open for them (selection already treats an expired lease as free, so this is bookkeeping
  *   for the dashboard counts);
  * - deletes dialer request-log rows older than REQUEST_LOG_RETENTION_DAYS (default 30), once an hour.
+ *
+ * Both are best effort: a slow or busy database just means they run again later, so failures are logged
+ * at most once every few minutes instead of every 30 seconds.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -13,24 +16,31 @@ export async function register() {
 
   const { prisma } = await import("@/lib/prisma");
 
+  let lastWarn = 0;
+  const warn = (what: string, e: unknown) => {
+    if (Date.now() - lastWarn < 5 * 60_000) return;
+    lastWarn = Date.now();
+    console.warn(`${what} failed, will retry:`, e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : e);
+  };
+
+  // Two plain statements, not a transaction: starting a transaction on a slow pooled connection can time out
+  // (P2028), and each statement is safe to run again on its own.
   const sweep = async () => {
     try {
-      await prisma.$transaction([
-        prisma.$executeRaw`
-          UPDATE callcenter.call_logs
-          SET call_status = 'unknown', ended_at = (now() AT TIME ZONE 'UTC')
-          WHERE call_status::text = 'in_progress'
-            AND did_id IN (
-              SELECT id FROM callcenter.dids
-              WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < (now() AT TIME ZONE 'UTC')
-            )`,
-        prisma.$executeRaw`
-          UPDATE callcenter.dids
-          SET is_in_use = false, lease_expires_at = NULL
-          WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < (now() AT TIME ZONE 'UTC')`,
-      ]);
+      await prisma.$executeRaw`
+        UPDATE callcenter.call_logs
+        SET call_status = 'unknown', ended_at = (now() AT TIME ZONE 'UTC')
+        WHERE call_status::text = 'in_progress'
+          AND did_id IN (
+            SELECT id FROM callcenter.dids
+            WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < (now() AT TIME ZONE 'UTC')
+          )`;
+      await prisma.$executeRaw`
+        UPDATE callcenter.dids
+        SET is_in_use = false, lease_expires_at = NULL
+        WHERE is_in_use AND lease_expires_at IS NOT NULL AND lease_expires_at < (now() AT TIME ZONE 'UTC')`;
     } catch (e) {
-      console.error("lease sweeper failed", e);
+      warn("Lease sweeper", e);
     }
   };
 
@@ -41,7 +51,7 @@ export async function register() {
         where: { createdAt: { lt: new Date(Date.now() - retentionDays * 86_400_000) } },
       });
     } catch (e) {
-      console.error("request log prune failed", e);
+      warn("Request log cleanup", e);
     }
   };
 

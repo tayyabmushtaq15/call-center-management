@@ -14,6 +14,18 @@ export async function createCallCenterAction(fd: FormData): Promise<CreateCallCe
   const email = String(fd.get("email") ?? "").trim().toLowerCase();
   const pwField = String(fd.get("password") ?? "");
   if (!name || !email) return { ok: false, error: "Name and email are required." };
+
+  // Rates this call center is charged: per call (required) and extra per attended call (optional, defaults to 0).
+  const rate = (field: string) => {
+    const raw = String(fd.get(field) ?? "").trim();
+    return raw === "" ? null : Number(raw);
+  };
+  const chargePerCall = rate("chargePerCall");
+  const chargePerAttended = rate("chargePerAttended") ?? 0;
+  if (chargePerCall === null) return { ok: false, error: "Enter the charge per call." };
+  for (const n of [chargePerCall, chargePerAttended]) {
+    if (!Number.isFinite(n) || n < 0 || n > 1000) return { ok: false, error: "Charges must be between 0 and 1000." };
+  }
   if (pwField && pwField.length < 8) {
     return { ok: false, error: "Password must be at least 8 characters, or leave it empty." };
   }
@@ -27,6 +39,8 @@ export async function createCallCenterAction(fd: FormData): Promise<CreateCallCe
         email,
         password: hash,
         status: "active",
+        chargePerCall,
+        chargePerAttended,
         apiKeys: { create: { key, status: "active" } },
       },
       select: { id: true },

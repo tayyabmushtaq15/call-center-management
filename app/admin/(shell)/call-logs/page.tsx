@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/admin-chrome";
+import { withCountryCode } from "@/lib/phone";
 
 export default function CallLogsPage() {
   const [logs, setLogs] = useState<
@@ -63,7 +64,7 @@ export default function CallLogsPage() {
               <tr key={l.id} className="border-t border-emerald-50 transition hover:bg-emerald-50/40">
                 <td className="px-3 py-2.5 font-mono text-slate-800">{l.receiverNumber}</td>
                 <td className="px-3 py-2.5 text-slate-800">{l.receiverState}</td>
-                <td className="px-3 py-2.5 font-mono text-slate-800">{l.did.number}</td>
+                <td className="px-3 py-2.5 font-mono text-slate-800">{withCountryCode(l.did.number)}</td>
                 <td className="px-3 py-2.5 text-slate-800">{l.user.name}</td>
                 <td className="px-3 py-2.5 text-slate-800">{l.callStatus}</td>
                 <td className="px-3 py-2.5 tabular-nums text-slate-800">

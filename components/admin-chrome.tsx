@@ -39,30 +39,72 @@ type StatTileProps = {
   title: string;
   value: string | number;
   hint?: string;
-  accent?: "default" | "violet" | "amber" | "rose" | "sky";
+  accent?: "default" | "sky" | "amber" | "violet" | "rose" | "teal";
   icon?: ReactNode;
 };
 
-const accentBubble: Record<NonNullable<StatTileProps["accent"]>, string> = {
-  default: "bg-emerald-100 text-emerald-600",
-  violet: "bg-teal-100 text-teal-600",
-  amber: "bg-amber-100 text-amber-600",
-  rose: "bg-rose-100 text-rose-600",
-  sky: "bg-lime-100 text-lime-700",
+// Full class names so Tailwind can see them. default = the brand green.
+// card: tinted gradient background and border. bubble: the icon tile. blob: the soft circle in the corner.
+const accents: Record<NonNullable<StatTileProps["accent"]>, { card: string; bubble: string; blob: string; label: string }> = {
+  default: {
+    card: "border-emerald-200 from-emerald-100 via-emerald-50 to-white hover:shadow-emerald-300/60",
+    bubble: "bg-emerald-500 text-white shadow-emerald-500/40",
+    blob: "bg-emerald-300/40",
+    label: "text-emerald-800/70",
+  },
+  sky: {
+    card: "border-sky-200 from-sky-100 via-sky-50 to-white hover:shadow-sky-300/60",
+    bubble: "bg-sky-500 text-white shadow-sky-500/40",
+    blob: "bg-sky-300/40",
+    label: "text-sky-800/70",
+  },
+  amber: {
+    card: "border-amber-200 from-amber-100 via-amber-50 to-white hover:shadow-amber-300/60",
+    bubble: "bg-amber-500 text-white shadow-amber-500/40",
+    blob: "bg-amber-300/40",
+    label: "text-amber-800/70",
+  },
+  violet: {
+    card: "border-violet-200 from-violet-100 via-violet-50 to-white hover:shadow-violet-300/60",
+    bubble: "bg-violet-500 text-white shadow-violet-500/40",
+    blob: "bg-violet-300/40",
+    label: "text-violet-800/70",
+  },
+  rose: {
+    card: "border-rose-200 from-rose-100 via-rose-50 to-white hover:shadow-rose-300/60",
+    bubble: "bg-rose-500 text-white shadow-rose-500/40",
+    blob: "bg-rose-300/40",
+    label: "text-rose-800/70",
+  },
+  teal: {
+    card: "border-teal-200 from-teal-100 via-teal-50 to-white hover:shadow-teal-300/60",
+    bubble: "bg-teal-500 text-white shadow-teal-500/40",
+    blob: "bg-teal-300/40",
+    label: "text-teal-800/70",
+  },
 };
 
 export function StatTile({ title, value, hint, accent = "default", icon }: StatTileProps) {
+  const a = accents[accent];
   return (
-    <div className={`${cardClass} flex items-center gap-4 p-4 transition hover:-translate-y-0.5 hover:shadow-md sm:p-5`}>
+    <div
+      className={`relative flex h-full min-h-[104px] items-center gap-4 overflow-hidden rounded-2xl border bg-gradient-to-br p-5 shadow-sm shadow-slate-900/5 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg ${a.card}`}
+    >
+      <div className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full ${a.blob}`} />
+      <div className={`pointer-events-none absolute -bottom-10 right-10 h-20 w-20 rounded-full ${a.blob} opacity-60`} />
       {icon ? (
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${accentBubble[accent]}`}>
+        <div className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-lg ${a.bubble}`}>
           {icon}
         </div>
       ) : null}
-      <div className="min-w-0">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</div>
-        <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</div>
-        {hint ? <div className="mt-0.5 text-xs text-slate-400">{hint}</div> : null}
+      <div className="relative min-w-0">
+        <div className={`text-sm font-semibold leading-snug ${a.label}`} title={title}>
+          {title}
+        </div>
+        <div className="mt-0.5 text-3xl font-bold tabular-nums tracking-tight text-slate-900">
+          {typeof value === "number" ? value.toLocaleString("en-US") : value}
+        </div>
+        {hint ? <div className="mt-0.5 text-xs leading-snug text-slate-500">{hint}</div> : null}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 /**
- * Seeds: 52 jurisdictions (50 states + DC + PR), area codes from libphonenumber geocoding dump,
+ * Seeds: the 50 US states, area codes from libphonenumber geocoding dump,
  * default Super Admin (change password in production), and default system settings.
  * Does NOT seed DIDs.
  */
@@ -8,8 +8,8 @@ import { join } from "path";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 
-/** 50 states + DC + PR = 52 per product spec */
-const STATES_52: { code: string; name: string }[] = [
+/** The 50 states. District of Columbia and Puerto Rico are not served. */
+const US_STATES: { code: string; name: string }[] = [
   { code: "AL", name: "Alabama" },
   { code: "AK", name: "Alaska" },
   { code: "AZ", name: "Arizona" },
@@ -60,15 +60,13 @@ const STATES_52: { code: string; name: string }[] = [
   { code: "WV", name: "West Virginia" },
   { code: "WI", name: "Wisconsin" },
   { code: "WY", name: "Wyoming" },
-  { code: "DC", name: "District of Columbia" },
-  { code: "PR", name: "Puerto Rico" },
 ];
 
-const ALLOWED_STATE_CODES = new Set(STATES_52.map((s) => s.code));
+const ALLOWED_STATE_CODES = new Set(US_STATES.map((s) => s.code));
 
 function buildNameToCode(): Map<string, string> {
   const m = new Map<string, string>();
-  for (const s of STATES_52) {
+  for (const s of US_STATES) {
     m.set(s.name.toLowerCase(), s.code);
   }
   return m;
@@ -118,13 +116,16 @@ function parseAreaCodesFromGeocoding(): Map<string, string> {
 
 async function main() {
   console.log("Seeding states…");
-  for (const s of STATES_52) {
+  for (const s of US_STATES) {
     await prisma.state.upsert({
       where: { code: s.code },
       create: { code: s.code, name: s.name, status: "active" },
       update: { name: s.name },
     });
   }
+
+  // DC and PR used to be seeded. Remove them (and their area codes, which cascade) unless a DID still uses them.
+  await prisma.state.deleteMany({ where: { code: { in: ["DC", "PR"] }, dids: { none: {} } } });
 
   const states = await prisma.state.findMany();
   const codeToId = new Map(states.map((st) => [st.code, st.id]));

@@ -94,6 +94,9 @@ model User {
   leaseSeconds  Int                   @default(3600) @map("lease_seconds")
   /// Optional digits the dialer puts in front of the dialed number (e.g. 7084). The dialer API strips it if present.
   dialPrefix    String?               @map("dial_prefix") @db.VarChar(10)
+  /// What this call center is charged for every call, and extra for every call that was attended (answered).
+  chargePerCall     Decimal @default(0) @map("charge_per_call") @db.Decimal(10, 4)
+  chargePerAttended Decimal @default(0) @map("charge_per_attended") @db.Decimal(10, 4)
   createdAt     DateTime              @default(now()) @map("created_at")
   allowedIps    AllowedIp[]
   requestLogs   DidRequestLog[]
@@ -220,6 +223,8 @@ model SystemSettings {
   systemName            String @default("Local Presence Dialing") @map("system_name")
   lowPoolWarningThreshold Int  @default(5) @map("low_pool_warning_threshold")
   apiRateLimitPerMinute Int    @default(6000) @map("api_rate_limit_per_minute")
+  /// Show the "free the DID at hangup" line on call center pages. Off unless the dialer reports call ends.
+  showHangupLine        Boolean @default(false) @map("show_hangup_line")
 
   @@map("system_settings")
   @@schema("callcenter")

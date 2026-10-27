@@ -19,6 +19,7 @@ const patchSchema = z.object({
   systemName: z.string().min(1).optional(),
   lowPoolWarningThreshold: z.number().int().nonnegative().optional(),
   apiRateLimitPerMinute: z.number().int().positive().optional(),
+  showHangupLine: z.boolean().optional(),
   adminName: z.string().min(1).optional(),
   adminEmail: z.string().email().optional(),
   adminPassword: z.string().min(8).optional(),
@@ -32,7 +33,8 @@ export async function PATCH(req: Request) {
     if (
       body.systemName !== undefined ||
       body.lowPoolWarningThreshold !== undefined ||
-      body.apiRateLimitPerMinute !== undefined
+      body.apiRateLimitPerMinute !== undefined ||
+      body.showHangupLine !== undefined
     ) {
       await prisma.systemSettings.update({
         where: { id: 1 },
@@ -46,6 +48,7 @@ export async function PATCH(req: Request) {
           ...(body.apiRateLimitPerMinute !== undefined
             ? { apiRateLimitPerMinute: body.apiRateLimitPerMinute }
             : {}),
+          ...(body.showHangupLine !== undefined ? { showHangupLine: body.showHangupLine } : {}),
         },
       });
     }

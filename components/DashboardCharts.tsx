@@ -12,6 +12,8 @@ import {
   CartesianGrid,
 } from "recharts";
 
+import { IconBars } from "@/components/icons";
+
 type Props = {
   hourly: { hour: number; calls: number }[];
   byState: { state: string; calls: number }[];
@@ -32,11 +34,27 @@ const tooltipContent = {
   color: "#1e293b",
 };
 
+function Empty() {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-center text-sm text-slate-400"
+      style={{ height: CHART_H }}
+    >
+      <IconBars width={28} height={28} />
+      No calls yet today
+    </div>
+  );
+}
+
 export function DashboardCharts({ hourly, byState }: Props) {
   return (
     <div className="grid w-full min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
       <div className={card}>
-        <h3 className={title}>Calls per hour (today)</h3>
+        <h3 className={title}>Calls per Hour</h3>
+        <p className="-mt-1 mb-3 text-xs text-slate-400">Today, by hour of the day</p>
+        {hourly.length === 0 ? (
+          <Empty />
+        ) : (
         <div className="w-full" style={{ height: CHART_H }}>
           <ResponsiveContainer width="100%" height={CHART_H} debounce={32}>
             <BarChart data={hourly}>
@@ -44,13 +62,18 @@ export function DashboardCharts({ hourly, byState }: Props) {
               <XAxis dataKey="hour" tick={tickStyle} />
               <YAxis allowDecimals={false} tick={tickStyle} />
               <Tooltip contentStyle={tooltipContent} />
-              <Bar dataKey="calls" fill="#10b981" name="Calls" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="calls" fill="#0ea5e9" name="Calls" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
+        )}
       </div>
       <div className={card}>
-        <h3 className={title}>Calls per state (today)</h3>
+        <h3 className={title}>Calls per State</h3>
+        <p className="-mt-1 mb-3 text-xs text-slate-400">Today, top states by calls</p>
+        {byState.length === 0 ? (
+          <Empty />
+        ) : (
         <div className="w-full" style={{ height: CHART_H }}>
           <ResponsiveContainer width="100%" height={CHART_H} debounce={32}>
             <BarChart data={byState.slice(0, 12)} layout="vertical">
@@ -58,10 +81,11 @@ export function DashboardCharts({ hourly, byState }: Props) {
               <XAxis type="number" allowDecimals={false} tick={tickStyle} />
               <YAxis dataKey="state" type="category" width={32} tick={tickStyle} />
               <Tooltip contentStyle={tooltipContent} />
-              <Bar dataKey="calls" fill="#34d399" name="Calls" />
+              <Bar dataKey="calls" fill="#8b5cf6" name="Calls" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
+        )}
       </div>
     </div>
   );
